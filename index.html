@@ -754,10 +754,20 @@ Geef het antwoord in exact deze twee blokken zonder extra tekst of markdown:
                     systemInstruction: { parts: [{ text: AI_SYSTEM_PROMPT }] }
                 };
 
-                const apiKey = ""; 
-                const apiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${apiKey}`;
+                const apiKey = "AQ.Ab8RN6K_AJ0LmN0PJC7iKnCPt9YMkVjLoXeLF1Lh9xMjz4hwYw";
+                const apiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${"AQ.Ab8RN6K_AJ0LmN0PJC7iKnCPt9YMkVjLoXeLF1Lh9xMjz4hwYw"}`;
                 
-                const response = await fetch(apiUrl, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) });
+                const response = await fetch(apiUrl, { 
+                    method: 'POST', 
+                    headers: { 'Content-Type': 'application/json' }, 
+                    body: JSON.stringify(payload) 
+                });
+                
+                if (!response.ok) {
+                    const errorData = await response.json();
+                    throw new Error(errorData.error?.message || "API Fout");
+                }
+
                 const result = await response.json();
                 
                 if (result.candidates && result.candidates.length > 0) {
@@ -766,7 +776,7 @@ Geef het antwoord in exact deze twee blokken zonder extra tekst of markdown:
                 
             } catch (error) {
                 console.error(error);
-                showToast("Fout bij AI verwerking.", "error");
+                showToast("Fout bij AI verwerking: " + error.message, "error");
                 hideModal('processingModal');
                 showModal('stagingModal'); 
             }
