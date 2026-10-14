@@ -416,10 +416,21 @@
     </template>
 
     <script type="module">
-        import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
         import { getAuth, signInAnonymously, onAuthStateChanged, signInWithCustomToken } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
         import { getFirestore, collection, addDoc, updateDoc, deleteDoc, doc, onSnapshot, query, serverTimestamp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
+        import { initializeApp } from "firebase/app";
+        import { getAnalytics } from "firebase/analytics";
 
+        const firebaseConfig = {
+            apiKey: "AIzaSyAfYrAWy_yVsEpoBYnudMInbEVjG4gtdzY",
+            authDomain: "digichecker-ae316.firebaseapp.com",
+            projectId: "digichecker-ae316",
+            storageBucket: "digichecker-ae316.firebasestorage.app",
+            messagingSenderId: "96092573104",
+            appId: "1:96092573104:web:c441d67e6a31b215495a75",
+            measurementId: "G-4TPGH8N5PZ"
+            };
+        
         const appId = typeof __app_id !== 'undefined' ? __app_id : 'digichecker-app';
         const firebaseConfig = typeof __firebase_config !== 'undefined' ? JSON.parse(__firebase_config) : {};
         const initialAuthToken = typeof __initial_auth_token !== 'undefined' ? __initial_auth_token : null;
@@ -427,6 +438,7 @@
         const app = initializeApp(firebaseConfig);
         const db = getFirestore(app);
         const auth = getAuth(app);
+
 
         let currentUser = null;
         let projects = [];
