@@ -17,9 +17,8 @@
                         sans: ['Inter', 'sans-serif'],
                     },
                     colors: {
-                        // Een strak zwart/wit thema ter vervanging van het blauw
-                        primary: '#18181b', // zinc-900 (dark)
-                        primaryLight: '#f4f4f5', // zinc-100 (light)
+                        primary: '#18181b',
+                        primaryLight: '#f4f4f5',
                     }
                 }
             }
@@ -34,7 +33,6 @@
     <style>
         body { font-family: 'Inter', sans-serif; }
         
-        /* Strakkere Kanban Board Styles */
         .kanban-board {
             display: flex;
             align-items: flex-start;
@@ -52,7 +50,6 @@
             max-height: calc(100vh - 140px);
         }
         
-        /* Subtiele top-borders voor kolommen ter accentuering */
         #col-upcoming .kanban-column-header { border-top: 3px solid #71717a; }
         #col-atelier .kanban-column-header { border-top: 3px solid #f59e0b; }
         #col-done .kanban-column-header { border-top: 3px solid #10b981; }
@@ -74,7 +71,7 @@
         
         .kanban-card:hover {
             box-shadow: 0 4px 6px rgba(0,0,0,0.1);
-            border-color: #52525b; /* zinc-600 */
+            border-color: #52525b;
         }
 
         .kanban-card.is-dragging {
@@ -84,9 +81,8 @@
             cursor: grabbing;
         }
 
-        /* Checkbox Styling */
         .custom-checkbox input:checked + div {
-            background-color: #10b981; /* strak groen */
+            background-color: #10b981;
             border-color: #10b981;
         }
         .custom-checkbox input:checked + div svg {
@@ -94,13 +90,12 @@
         }
         .item-checked {
             text-decoration: line-through;
-            color: #71717a; /* zinc-500 */
+            color: #71717a;
         }
         .dark .item-checked {
-            color: #52525b; /* zinc-600 */
+            color: #52525b;
         }
 
-        /* Utility classes */
         .loader {
             border: 3px solid #3f3f46;
             border-top: 3px solid #e4e4e7;
@@ -122,14 +117,12 @@
         .dark .kanban-cards-container::-webkit-scrollbar-thumb,
         .dark .custom-scrollbar::-webkit-scrollbar-thumb { background: #3f3f46; }
         
-        /* Modal Styles */
         .modal-overlay {
             background-color: rgba(0, 0, 0, 0.7);
             backdrop-filter: blur(4px);
         }
     </style>
 </head>
-<!-- Echte zwarte achtergrond (bg-black) en strakkere grijstinten (zinc) -->
 <body class="bg-zinc-100 text-zinc-900 dark:bg-black dark:text-zinc-200 transition-colors duration-200">
 
     <div class="min-h-screen flex flex-col">
@@ -263,7 +256,6 @@
                     <!-- Injected via JS -->
                 </div>
 
-                <!-- Titel en Weeknummer Rij -->
                 <div class="mb-4 flex flex-col sm:flex-row gap-4">
                     <div class="flex-grow">
                         <label class="block text-sm font-medium text-zinc-700 dark:text-zinc-300 mb-1">Projecttitel</label>
@@ -311,7 +303,6 @@
                             <option value="done">Gereed</option>
                         </select>
                         
-                        <!-- Week Nummer Veld -->
                         <div class="flex items-center border border-zinc-300 dark:border-zinc-700 rounded-md overflow-hidden bg-white dark:bg-zinc-800">
                              <span class="px-2 py-1.5 text-sm bg-zinc-100 dark:bg-zinc-900 text-zinc-600 dark:text-zinc-400 border-r border-zinc-300 dark:border-zinc-700 font-medium">Week oplevering</span>
                              <input type="number" id="modalProjectWeek" class="w-16 p-1.5 text-sm bg-transparent border-none text-zinc-900 dark:text-white text-center focus:ring-0 outline-none" placeholder="-">
@@ -366,7 +357,7 @@
         <span id="toastMessage">Bericht</span>
     </div>
 
-    <!-- Custom Dialog Modal (Vervangt prompt en confirm) -->
+    <!-- Custom Dialog Modal -->
     <div id="customDialogModal" class="fixed inset-0 modal-overlay z-[100] flex items-center justify-center hidden opacity-0 transition-opacity duration-300">
         <div class="bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-md shadow-2xl p-6 max-w-sm mx-4 w-full transform scale-95 transition-transform duration-300 flex flex-col">
             <h3 id="dialogTitle" class="text-lg font-bold text-zinc-900 dark:text-white mb-2">Titel</h3>
@@ -416,9 +407,9 @@
     </template>
 
     <script type="module">
+        import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
         import { getAuth, signInAnonymously, onAuthStateChanged, signInWithCustomToken } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
         import { getFirestore, collection, addDoc, updateDoc, deleteDoc, doc, onSnapshot, query, serverTimestamp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
-        import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
         import { getAnalytics } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-analytics.js";
 
         const firebaseConfig = {
@@ -429,14 +420,14 @@
             messagingSenderId: "96092573104",
             appId: "1:96092573104:web:c441d67e6a31b215495a75",
             measurementId: "G-4TPGH8N5PZ"
-            };
+        };
         
         const appId = typeof __app_id !== 'undefined' ? __app_id : 'digichecker-app';
         const initialAuthToken = typeof __initial_auth_token !== 'undefined' ? __initial_auth_token : null;
         const app = initializeApp(firebaseConfig);
         const db = getFirestore(app);
         const auth = getAuth(app);
-
+        const analytics = getAnalytics(app);
 
         let currentUser = null;
         let projects = [];
@@ -464,7 +455,6 @@ Geef het antwoord in exact deze twee blokken zonder extra tekst of markdown:
 2. De Items
 [Zet hier de regels onder elkaar. Gebruik een '-' vooraan de regel voor sub-items. Plaats de titel NIET in deze lijst.]`;
 
-        // --- Init & Theming ---
         async function initAuth() {
             try {
                 if (initialAuthToken) await signInWithCustomToken(auth, initialAuthToken);
@@ -504,7 +494,6 @@ Geef het antwoord in exact deze twee blokken zonder extra tekst of markdown:
         initAuth();
         setupEventListeners();
 
-        // --- Core Functions ---
         function setupEventListeners() {
             const camInput = document.getElementById('stagingCameraInput');
             const fileInput = document.getElementById('stagingFileInput');
@@ -604,7 +593,6 @@ Geef het antwoord in exact deze twee blokken zonder extra tekst of markdown:
                     cardElement.dataset.status = status;
                     clone.querySelector('.card-title').textContent = project.title || 'Nieuw Project';
                     
-                    // Progress Calculation
                     const checklist = project.checklist || [];
                     let total = 0, checked = 0;
                     checklist.forEach(item => {
@@ -663,7 +651,6 @@ Geef het antwoord in exact deze twee blokken zonder extra tekst of markdown:
             document.querySelector('#col-done .count-badge').textContent = counts['done'];
         }
 
-        // --- Drag & Drop ---
         let draggedCard = null;
         function setupDragAndDropForCard(card) {
             card.addEventListener('dragstart', function(e) {
@@ -691,7 +678,6 @@ Geef het antwoord in exact deze twee blokken zonder extra tekst of markdown:
             });
         });
 
-        // --- Image processing & Staging ---
         window.openStagingModal = function() {
             stagingImagesBase64 = [];
             renderStagingImages();
@@ -769,7 +755,7 @@ Geef het antwoord in exact deze twee blokken zonder extra tekst of markdown:
                 };
 
                 const apiKey = ""; 
-                const apiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-3-flash-preview:generateContent?key=${apiKey}`;
+                const apiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${apiKey}`;
                 
                 const response = await fetch(apiUrl, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) });
                 const result = await response.json();
@@ -810,7 +796,6 @@ Geef het antwoord in exact deze twee blokken zonder extra tekst of markdown:
                 
                 let currentItem = null;
                 lines.forEach(line => {
-                    // Filter de titel er strak uit
                     if (line.match(/^P\d{6}\s*-/i)) {
                         if (title === "Nieuw Project" || title === "") title = line;
                         return; 
@@ -846,7 +831,7 @@ Geef het antwoord in exact deze twee blokken zonder extra tekst of markdown:
             });
 
             document.getElementById('reviewTitle').value = title;
-            document.getElementById('reviewWeek').value = ''; // Reset
+            document.getElementById('reviewWeek').value = '';
             renderReviewChecklist();
 
             hideModal('processingModal');
@@ -941,7 +926,6 @@ Geef het antwoord in exact deze twee blokken zonder extra tekst of markdown:
             }
         }
 
-        // --- Active Project Modal ---
         function openProjectModal(project) {
             activeProject = project;
             document.getElementById('modalProjectTitle').innerText = project.title;
@@ -1087,7 +1071,6 @@ Geef het antwoord in exact deze twee blokken zonder extra tekst of markdown:
             try { await updateDoc(doc(db, 'artifacts', appId, 'users', currentUser.uid, 'projects', activeProject.id), { checklist: updatedChecklist }); } catch(e) { }
         }
 
-        // Custom Dialog Helper
         window.openCustomDialog = function(options) {
             return new Promise((resolve) => {
                 const modal = document.getElementById('customDialogModal');
