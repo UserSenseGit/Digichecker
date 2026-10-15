@@ -930,7 +930,7 @@
         }
 
         function createCheckboxHTML(item, isSub = false, parentId = null) {
-            const hasLD = /LD|Leverdatum/i.test(item.text);
+            const hasLD = /\bB\d{6}\b/i.test(item.text);
             
             let extraCheckboxes = '';
             if (hasLD) {
