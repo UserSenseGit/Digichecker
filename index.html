@@ -61,6 +61,24 @@
             border-top: 3px solid #f59e0b;
         }
 
+        #col-archive .kanban-column-header {
+            border-top: 3px solid #3f3f46;
+        }
+
+        #col-archive.archive-collapsed {
+            min-width: 72px;
+            width: 72px;
+        }
+
+        #col-archive.archive-collapsed .kanban-cards-container,
+        #col-archive.archive-collapsed .archive-label {
+            display: none;
+        }
+
+        #col-archive.archive-collapsed .archive-title {
+            flex-direction: column;
+        }
+
         #col-done .kanban-column-header {
             border-top: 3px solid #10b981;
         }
@@ -249,6 +267,21 @@
                     </div>
                     <div class="kanban-cards-container" data-status="done"></div>
                 </div>
+
+                <!-- Column: Archief -->
+                <div class="kanban-column bg-zinc-50 dark:bg-zinc-950 border border-zinc-200 dark:border-zinc-800 rounded-md"
+                    id="col-archive" data-status="archive">
+                    <div onclick="toggleArchive()" title="Archief in- of uitklappen"
+                        class="kanban-column-header p-3 font-semibold text-zinc-900 dark:text-white flex justify-between items-center bg-white dark:bg-zinc-900 border-b border-zinc-200 dark:border-zinc-800 rounded-t-md cursor-pointer select-none">
+                        <div class="archive-title flex items-center gap-2">
+                            <i id="archiveChevron" class="fa-solid fa-chevron-down text-xs text-zinc-400"></i>
+                            <span class="archive-label">Archief</span>
+                            <span
+                                class="bg-zinc-200 dark:bg-zinc-800 text-zinc-700 dark:text-zinc-300 text-xs px-2 py-1 rounded-sm font-bold count-badge">0</span>
+                        </div>
+                    </div>
+                    <div class="kanban-cards-container" data-status="archive"></div>
+                </div>
             </div>
         </main>
     </div>
@@ -401,6 +434,7 @@
                             <option value="upcoming">Aankomend</option>
                             <option value="atelier">Atelier</option>
                             <option value="done">Gereed</option>
+                            <option value="archive">Archief</option>
                         </select>
 
                         <div
@@ -618,6 +652,22 @@
             updateThemeIcon();
         });
 
+        function updateArchiveChevron() {
+            const collapsed = document.getElementById('col-archive').classList.contains('archive-collapsed');
+            const ic = document.getElementById('archiveChevron');
+            ic.classList.toggle('fa-chevron-down', !collapsed);
+            ic.classList.toggle('fa-chevron-right', collapsed);
+        }
+        window.toggleArchive = function () {
+            const collapsed = document.getElementById('col-archive').classList.toggle('archive-collapsed');
+            localStorage.setItem('archiveCollapsed', collapsed ? '1' : '0');
+            updateArchiveChevron();
+        };
+        if (localStorage.getItem('archiveCollapsed') === '1') {
+            document.getElementById('col-archive').classList.add('archive-collapsed');
+        }
+        updateArchiveChevron();
+
         function setupEventListeners() {
             const camInput = document.getElementById('stagingCameraInput');
             const fileInput = document.getElementById('stagingFileInput');
@@ -703,9 +753,10 @@
             const containers = {
                 'upcoming': document.querySelector('#col-upcoming .kanban-cards-container'),
                 'atelier': document.querySelector('#col-atelier .kanban-cards-container'),
-                'done': document.querySelector('#col-done .kanban-cards-container')
+                'done': document.querySelector('#col-done .kanban-cards-container'),
+                'archive': document.querySelector('#col-archive .kanban-cards-container')
             };
-            const counts = { 'upcoming': 0, 'atelier': 0, 'done': 0 };
+            const counts = { 'upcoming': 0, 'atelier': 0, 'done': 0, 'archive': 0 };
 
             Object.values(containers).forEach(c => c.innerHTML = '');
             const template = document.getElementById('kanbanCardTemplate');
@@ -713,6 +764,29 @@
             projects.forEach(project => {
                 const status = project.status || 'upcoming';
                 const container = containers[status];
+
+                if (status === 'archive' && container) {
+                    counts['archive']++;
+                    const row = document.createElement('div');
+                    row.className = 'kanban-card group flex items-center justify-between gap-2 bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-md px-3 py-2 cursor-pointer';
+                    row.draggable = true;
+                    row.dataset.id = project.id;
+                    row.dataset.status = status;
+                    row.innerHTML = '<span class="text-sm text-zinc-700 dark:text-zinc-300 truncate flex-grow"></span>' +
+                        '<button class="archive-delete shrink-0 text-red-400 hover:text-red-600 p-1.5 rounded-md hover:bg-red-50 dark:hover:bg-red-900/20 transition-colors" title="Verwijderen"><i class="fa-regular fa-trash-can"></i></button>';
+                    row.firstElementChild.textContent = project.title || 'Nieuw Project';
+                    row.addEventListener('click', (e) => {
+                        if (e.target.closest('.archive-delete')) return;
+                        openProjectModal(project);
+                    });
+                    row.querySelector('.archive-delete').addEventListener('click', (e) => {
+                        e.stopPropagation();
+                        deleteProjectById(project.id, project.title);
+                    });
+                    setupDragAndDropForCard(row);
+                    container.appendChild(row);
+                    return;
+                }
 
                 if (container) {
                     counts[status]++;
@@ -779,6 +853,7 @@
             document.querySelector('#col-upcoming .count-badge').textContent = counts['upcoming'];
             document.querySelector('#col-atelier .count-badge').textContent = counts['atelier'];
             document.querySelector('#col-done .count-badge').textContent = counts['done'];
+            document.querySelector('#col-archive .count-badge').textContent = counts['archive'];
         }
 
         let draggedCard = null;
@@ -1184,7 +1259,7 @@
                     if (i.subitems) i.subitems.forEach(s => { if (!s.checked) allDone = false; });
                 });
 
-                if (allDone && updatedChecklist.length > 0 && activeProject.status !== 'done') {
+                if (allDone && updatedChecklist.length > 0 && activeProject.status !== 'done' && activeProject.status !== 'archive') {
                     await updateDoc(docRef, { status: 'done' });
                     showToast("Alle items afgevinkt! Verplaatst naar Gereed.", "success");
                 }
@@ -1354,6 +1429,22 @@
             } catch (e) {
                 showToast("Fout bij verwijderen", "error");
             }
+        }
+
+        async function deleteProjectById(id, title) {
+            if (!currentUser) return;
+            const ok = await window.openCustomDialog({
+                title: 'Project verwijderen',
+                message: '"' + (title || 'Project') + '" definitief verwijderen? Dit kan niet ongedaan worden gemaakt.',
+                type: 'confirm',
+                isDanger: true,
+                confirmText: 'Verwijderen'
+            });
+            if (!ok) return;
+            try {
+                await deleteDoc(projectDoc(id));
+                showToast("Project verwijderd", "success");
+            } catch (e) { showToast("Fout bij verwijderen: " + (e.code || e.message), "error"); }
         }
 
         async function deleteActiveProject() {
