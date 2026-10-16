@@ -60,7 +60,7 @@ export default async function handler(req, res) {
   };
 
   const r = await fetch(
-    "https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent",
+    "https://generativelanguage.googleapis.com/v1beta/models/Gemini_3.5_flash-lite:generateContent",
     {
       method: "POST",
       headers: {
