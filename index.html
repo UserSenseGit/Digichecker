@@ -179,6 +179,16 @@
             background-color: rgba(0, 0, 0, 0.7);
             backdrop-filter: blur(4px);
         }
+    
+        .label-aframes { border-left: 4px solid #18181b; }
+        .label-axor    { border-left: 4px solid #2563eb; }
+        .label-extern  { border-left: 4px solid #dc2626; }
+        .dark .label-aframes { border-left-color: #e4e4e7; }
+        .label-chip { display:inline-flex; align-items:center; font-size:10px; font-weight:700; text-transform:uppercase; letter-spacing:.05em; padding:2px 6px; border-radius:2px; color:#fff; }
+        .label-chip.aframes { background:#18181b; }
+        .dark .label-chip.aframes { background:#e4e4e7; color:#18181b; }
+        .label-chip.axor { background:#2563eb; }
+        .label-chip.extern { background:#dc2626; }
     </style>
 </head>
 
@@ -389,6 +399,16 @@
                 </div>
 
                 <div class="mb-4">
+                    <label class="block text-sm font-medium text-zinc-700 dark:text-zinc-300 mb-1">Label</label>
+                    <select id="reviewLabel"
+                        class="w-full p-2 border border-zinc-300 dark:border-zinc-700 bg-white dark:bg-zinc-800 text-zinc-900 dark:text-white rounded-md outline-none focus:ring-1 focus:ring-zinc-900 dark:focus:ring-white">
+                        <option value="aframes">⚫ A-Frames</option>
+                        <option value="axor">🔵 Axor / A-Struc</option>
+                        <option value="extern">🔴 Extern</option>
+                    </select>
+                </div>
+
+                <div class="mb-4">
                     <label class="block text-sm font-medium text-zinc-700 dark:text-zinc-300 mb-2">Checklist
                         (Bewerkbaar)</label>
                     <div id="reviewChecklist"
@@ -435,6 +455,14 @@
                             <option value="atelier">Atelier</option>
                             <option value="done">Gereed</option>
                             <option value="archive">Archief</option>
+                        </select>
+
+                        <select id="modalProjectLabel"
+                            class="text-sm font-medium rounded-md border-zinc-300 dark:border-zinc-700 bg-white dark:bg-zinc-800 text-zinc-900 dark:text-white shadow-sm focus:ring-1 focus:ring-zinc-500 outline-none px-2 py-1.5">
+                            <option value="">Geen label</option>
+                            <option value="aframes">⚫ A-Frames</option>
+                            <option value="axor">🔵 Axor / A-Struc</option>
+                            <option value="extern">🔴 Extern</option>
                         </select>
 
                         <div
@@ -561,8 +589,10 @@
                         <i class="fa-regular fa-clock"></i> <span class="date-text"></span>
                     </span>
                 </div>
-                <span
-                    class="text-[10px] uppercase tracking-wider font-bold text-zinc-500 dark:text-zinc-400 px-2 py-0.5 card-status-badge">Nieuw</span>
+                <div class="flex items-center gap-2">
+                    <span class="label-chip card-label-chip hidden"></span>
+                    <span class="text-[10px] uppercase tracking-wider font-bold text-zinc-500 dark:text-zinc-400 px-0.5 card-status-badge">Nieuw</span>
+                </div>
             </div>
         </div>
     </template>
@@ -598,6 +628,7 @@
 
         let stagingImagesBase64 = [];
         let pendingProjectData = null;
+        const LABELS = { aframes: 'A-Frames', axor: 'Axor / A-Struc', extern: 'Extern' };
         const esc = (s) => String(s ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 
         onAuthStateChanged(auth, (user) => {
@@ -697,6 +728,12 @@
                 }
             });
 
+            document.getElementById('modalProjectLabel').addEventListener('change', (e) => {
+                if (activeProject && (activeProject.label || '') !== e.target.value) {
+                    updateProjectField(activeProject.id, { label: e.target.value });
+                }
+            });
+
             document.getElementById('modalProjectWeek').addEventListener('change', (e) => {
                 if (activeProject && activeProject.weekNumber !== e.target.value) {
                     updateProjectField(activeProject.id, { weekNumber: e.target.value });
@@ -735,6 +772,7 @@
                         renderActiveProjectLiveChecklist();
                         document.getElementById('modalProjectStatus').value = activeProject.status || 'upcoming';
                         document.getElementById('modalProjectWeek').value = activeProject.weekNumber || '';
+                        document.getElementById('modalProjectLabel').value = activeProject.label || '';
                     } else {
                         hideModal('projectModal');
                     }
@@ -772,6 +810,7 @@
                     row.draggable = true;
                     row.dataset.id = project.id;
                     row.dataset.status = status;
+                    if (project.label && LABELS[project.label]) row.classList.add('label-' + project.label);
                     row.innerHTML = '<span class="text-sm text-zinc-700 dark:text-zinc-300 truncate flex-grow"></span>' +
                         '<button class="archive-delete shrink-0 text-red-400 hover:text-red-600 p-1.5 rounded-md hover:bg-red-50 dark:hover:bg-red-900/20 transition-colors" title="Verwijderen"><i class="fa-regular fa-trash-can"></i></button>';
                     row.firstElementChild.textContent = project.title || 'Nieuw Project';
@@ -795,6 +834,13 @@
 
                     cardElement.dataset.id = project.id;
                     cardElement.dataset.status = status;
+                    if (project.label && LABELS[project.label]) {
+                        cardElement.classList.add('label-' + project.label);
+                        const chip = clone.querySelector('.card-label-chip');
+                        chip.textContent = LABELS[project.label];
+                        chip.classList.add(project.label);
+                        chip.classList.remove('hidden');
+                    }
                     clone.querySelector('.card-title').textContent = project.title || 'Nieuw Project';
 
                     const checklist = project.checklist || [];
@@ -1037,6 +1083,7 @@
 
             document.getElementById('reviewTitle').value = title;
             document.getElementById('reviewWeek').value = '';
+            document.getElementById('reviewLabel').value = 'aframes';
             renderReviewChecklist();
 
             hideModal('processingModal');
@@ -1102,6 +1149,7 @@
             if (!currentUser || !pendingProjectData) return;
             const finalTitle = document.getElementById('reviewTitle').value.trim() || 'Onbekend Project';
             const weekNumber = document.getElementById('reviewWeek').value.trim();
+            const label = document.getElementById('reviewLabel').value;
 
             const cleanedChecklist = pendingProjectData.checklist.filter(i => i.text.trim().length > 0).map(i => ({
                 ...i,
@@ -1124,6 +1172,7 @@
                     checklist: cleanedChecklist,
                     images: pendingProjectData.images,
                     status: 'upcoming',
+                    label: label,
                     createdAt: serverTimestamp()
                 });
                 hideModal('reviewModal');
@@ -1153,6 +1202,7 @@
 
             document.getElementById('modalProjectStatus').value = project.status || 'upcoming';
             document.getElementById('modalProjectWeek').value = project.weekNumber || '';
+            document.getElementById('modalProjectLabel').value = project.label || '';
             renderActiveProjectLiveChecklist();
             showModal('projectModal');
         }
