@@ -189,6 +189,12 @@
         .dark .label-chip.aframes { background:#e4e4e7; color:#18181b; }
         .label-chip.axor { background:#2563eb; }
         .label-chip.extern { background:#dc2626; }
+    
+        /* patch: modals boven projectmodal, sleep-handvat */
+        #stagingModal, #reviewModal { z-index: 70 !important; }
+        #processingModal { z-index: 80 !important; }
+        .cl-grip { cursor: grab; touch-action: none; }
+        .cl-main.is-sorting, .cl-sub.is-sorting { opacity: .5; }
     </style>
 </head>
 
@@ -312,7 +318,7 @@
         <div
             class="bg-white dark:bg-zinc-900 rounded-md border border-zinc-200 dark:border-zinc-800 shadow-2xl p-6 max-w-2xl w-full mx-4 transform scale-95 transition-transform duration-300 flex flex-col">
             <div class="flex justify-between items-center mb-6">
-                <h2 class="text-xl font-bold text-zinc-900 dark:text-white">Nieuw Project Toevoegen</h2>
+                <h2 id="stagingTitle" class="text-xl font-bold text-zinc-900 dark:text-white">Nieuw Project Toevoegen</h2>
                 <button onclick="hideModal('stagingModal')"
                     class="text-zinc-400 hover:text-zinc-600 dark:hover:text-zinc-300">
                     <i class="fa-solid fa-xmark text-xl"></i>
@@ -341,6 +347,11 @@
             </div>
 
             <div class="mt-6 pt-4 border-t border-zinc-200 dark:border-zinc-800 flex justify-end">
+                <button id="btnEmptyProject" onclick="createEmptyProject()"
+                    class="mr-3 bg-zinc-100 dark:bg-zinc-800 hover:bg-zinc-200 dark:hover:bg-zinc-700 border border-zinc-200 dark:border-zinc-700 text-zinc-900 dark:text-zinc-100 px-4 py-2.5 rounded-md font-medium transition-colors flex items-center gap-2">
+                    <i class="fa-regular fa-file"></i>
+                    <span>Zonder fiche aanmaken</span>
+                </button>
                 <button id="btnProcessImages"
                     class="bg-zinc-900 dark:bg-white text-white dark:text-zinc-900 hover:bg-zinc-800 dark:hover:bg-zinc-200 px-6 py-2.5 rounded-md font-bold shadow-sm transition-colors flex items-center gap-2 opacity-50 cursor-not-allowed"
                     disabled>
@@ -499,7 +510,13 @@
                 <div
                     class="w-full lg:w-1/2 h-[50%] lg:h-full p-4 sm:p-6 overflow-y-auto custom-scrollbar flex flex-col min-h-0 border-b lg:border-b-0 lg:border-r border-zinc-200 dark:border-zinc-800">
                     <div class="flex justify-between items-center mb-4">
-                        <h3 class="font-bold text-zinc-900 dark:text-white text-lg">Checklist</h3>
+                        <div class="flex items-center gap-3">
+                            <h3 class="font-bold text-zinc-900 dark:text-white text-lg">Checklist</h3>
+                            <button onclick="openStagingModalForProject()"
+                                class="text-sm text-zinc-700 dark:text-zinc-300 hover:text-zinc-900 dark:hover:text-white flex items-center gap-1 font-medium bg-zinc-100 dark:bg-zinc-800 border border-zinc-300 dark:border-zinc-700 px-3 py-1.5 rounded-md transition-colors">
+                                <i class="fa-solid fa-camera"></i> Fiche toevoegen
+                            </button>
+                        </div>
                         <button onclick="addNewMainItemToLiveProject()"
                             class="text-sm text-zinc-700 dark:text-zinc-300 hover:text-zinc-900 dark:hover:text-white flex items-center gap-1 font-medium bg-zinc-100 dark:bg-zinc-800 border border-zinc-300 dark:border-zinc-700 px-3 py-1.5 rounded-md transition-colors">
                             <i class="fa-solid fa-plus"></i> Hoofdpunt
@@ -603,6 +620,7 @@
 
         let stagingImagesBase64 = [];
         let pendingProjectData = null;
+        let stagingTargetProjectId = null;
         const LABELS = { aframes: 'A-Frames', axor: 'Axor / A-Struc', extern: 'Extern' };
         const esc = (s) => String(s ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
         const STEEKRUBBER = 'Steekrubber';
@@ -758,6 +776,7 @@
                     const updatedActive = projects.find(p => p.id === activeProject.id);
                     if (updatedActive) {
                         activeProject = updatedActive;
+                        renderActiveProjectImages();
                         renderActiveProjectLiveChecklist();
                         document.getElementById('modalProjectStatus').value = activeProject.status || 'upcoming';
                         document.getElementById('modalProjectWeek').value = activeProject.weekNumber || '';
@@ -902,9 +921,39 @@
         });
 
         window.openStagingModal = function () {
+            stagingTargetProjectId = null;
+            setStagingMode(false);
             stagingImagesBase64 = [];
             renderStagingImages();
             showModal('stagingModal');
+        }
+
+        function setStagingMode(append) {
+            document.getElementById('stagingTitle').textContent = append ? 'Fiche toevoegen aan project' : 'Nieuw Project Toevoegen';
+            document.getElementById('btnEmptyProject').style.display = append ? 'none' : '';
+        }
+
+        window.openStagingModalForProject = function () {
+            if (!activeProject) return;
+            stagingImagesBase64 = [];
+            stagingTargetProjectId = activeProject.id;
+            setStagingMode(true);
+            renderStagingImages();
+            showModal('stagingModal');
+        }
+
+        window.createEmptyProject = function () {
+            stagingTargetProjectId = null;
+            stagingImagesBase64 = [];
+            pendingProjectData = { title: '', checklist: [], images: [], targetId: null };
+            document.getElementById('reviewImagesContainer').innerHTML = '';
+            document.getElementById('reviewTitle').value = '';
+            document.getElementById('reviewWeek').value = '';
+            document.getElementById('reviewLabel').value = 'aframes';
+            renderReviewChecklist();
+            hideModal('stagingModal');
+            showModal('reviewModal');
+            setTimeout(() => document.getElementById('reviewTitle').focus(), 350);
         }
 
         function compressImage(file, callback) {
@@ -1042,7 +1091,7 @@
                 itemsArray = [{ id: crypto.randomUUID(), text: "Fout bij inlezen items", checked: false, subitems: [] }];
             }
 
-            pendingProjectData = { title: title, checklist: itemsArray, images: [...stagingImagesBase64] };
+            pendingProjectData = { title: title, checklist: itemsArray, images: [...stagingImagesBase64], targetId: stagingTargetProjectId };
 
             const imgContainer = document.getElementById('reviewImagesContainer');
             imgContainer.innerHTML = '';
@@ -1056,6 +1105,14 @@
             document.getElementById('reviewTitle').value = title;
             document.getElementById('reviewWeek').value = '';
             document.getElementById('reviewLabel').value = 'aframes';
+            if (stagingTargetProjectId) {
+                const tp = projects.find(p => p.id === stagingTargetProjectId);
+                if (tp) {
+                    document.getElementById('reviewTitle').value = tp.title || '';
+                    document.getElementById('reviewWeek').value = tp.weekNumber || '';
+                    document.getElementById('reviewLabel').value = tp.label || '';
+                }
+            }
             renderReviewChecklist();
 
             hideModal('processingModal');
@@ -1127,9 +1184,17 @@
                 ...i,
                 subitems: i.subitems.filter(s => s.text.trim().length > 0)
             }));
-            if (label === 'extern' && !hasSteekrubber(cleanedChecklist)) cleanedChecklist.push(newSteekrubberItem());
+            if (label === 'extern' && !hasSteekrubber(cleanedChecklist) && !(pendingProjectData.targetId && hasSteekrubber((projects.find(p => p.id === pendingProjectData.targetId) || {}).checklist || []))) cleanedChecklist.push(newSteekrubberItem());
 
-            const approxSize = JSON.stringify({ checklist: cleanedChecklist, images: pendingProjectData.images }).length;
+            const targetProject = pendingProjectData.targetId ? projects.find(p => p.id === pendingProjectData.targetId) : null;
+            if (pendingProjectData.targetId && !targetProject) { showToast("Project niet meer gevonden", "error"); return; }
+            let finalChecklist = cleanedChecklist;
+            let finalImages = pendingProjectData.images;
+            if (targetProject) {
+                finalChecklist = [...(targetProject.checklist || []), ...cleanedChecklist];
+                finalImages = [...(targetProject.images || (targetProject.imageBase64 ? [targetProject.imageBase64] : [])), ...pendingProjectData.images];
+            }
+            const approxSize = JSON.stringify({ checklist: finalChecklist, images: finalImages }).length;
             if (approxSize > 950000) {
                 showToast("Foto's zijn samen te groot (max ±1 MB per project). Gebruik minder foto's.", "error");
                 return;
@@ -1139,7 +1204,13 @@
             btn.disabled = true; btn.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i>';
 
             try {
-                await addDoc(projectsCol(), {
+                if (targetProject) {
+                    const upd = { checklist: finalChecklist, images: finalImages };
+                    if (finalTitle !== (targetProject.title || '')) upd.title = finalTitle;
+                    if (weekNumber !== String(targetProject.weekNumber || '')) upd.weekNumber = weekNumber;
+                    if (label !== (targetProject.label || '')) upd.label = label;
+                    await updateDoc(projectDoc(targetProject.id), upd);
+                } else await addDoc(projectsCol(), {
                     title: finalTitle,
                     weekNumber: weekNumber,
                     checklist: cleanedChecklist,
@@ -1149,7 +1220,8 @@
                     createdAt: serverTimestamp()
                 });
                 hideModal('reviewModal');
-                showToast("Project aangemaakt!", "success");
+                showToast(targetProject ? "Fiche toegevoegd!" : "Project aangemaakt!", "success");
+                stagingTargetProjectId = null;
                 pendingProjectData = null;
                 stagingImagesBase64 = [];
             } catch (e) {
@@ -1162,6 +1234,7 @@
         function openProjectModal(project) {
             activeProject = project;
             document.getElementById('modalProjectTitle').innerText = project.title;
+            document.getElementById('modalProjectImagesContainer').dataset.key = '';
 
             const imgContainer = document.getElementById('modalProjectImagesContainer');
             imgContainer.innerHTML = '';
@@ -1177,6 +1250,7 @@
             document.getElementById('modalProjectWeek').value = project.weekNumber || '';
             document.getElementById('modalProjectLabel').value = project.label || '';
             renderActiveProjectLiveChecklist();
+            renderActiveProjectImages();
             showModal('projectModal');
         }
 
@@ -1206,6 +1280,7 @@
 
             return `
                 <div class="flex items-start justify-between p-2.5 rounded-md border ${isSub ? 'border-transparent hover:bg-zinc-50 dark:hover:bg-zinc-800/50' : 'border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-900 shadow-sm'} group min-w-0">
+                    <span class="cl-grip shrink-0 text-zinc-300 hover:text-zinc-700 dark:text-zinc-600 dark:hover:text-zinc-300 px-1.5 pt-1 select-none" title="Slepen om te verplaatsen"><i class="fa-solid fa-grip-vertical text-xs"></i></span>
                     <label class="flex-grow flex items-start gap-3 cursor-pointer min-w-0">
                         <div class="relative flex items-center justify-center w-5 h-5 mt-0.5 rounded-sm border-2 border-zinc-300 dark:border-zinc-600 bg-white dark:bg-zinc-800 flex-shrink-0">
                             <input type="checkbox" class="opacity-0 absolute inset-0 cursor-pointer w-full h-full z-10" ${item.checked ? 'checked' : ''} onchange="toggleItemStatus('${item.id}', this.checked, ${isSub ? `'${parentId}'` : 'null'})">
@@ -1236,14 +1311,19 @@
             checklist.forEach(item => {
                 total++; if (item.checked) checkedCount++;
                 const itemDiv = document.createElement('div');
+                itemDiv.className = 'cl-main';
+                itemDiv.dataset.id = item.id;
                 itemDiv.innerHTML = createCheckboxHTML(item, false);
 
                 if (item.subitems && item.subitems.length > 0) {
                     const subContainer = document.createElement('div');
                     subContainer.className = "ml-7 space-y-1 mt-1 pl-2 border-l-2 border-zinc-200 dark:border-zinc-800";
+                    subContainer.dataset.parent = item.id;
                     item.subitems.forEach(sub => {
                         total++; if (sub.checked) checkedCount++;
                         const subDiv = document.createElement('div');
+                        subDiv.className = 'cl-sub';
+                        subDiv.dataset.id = sub.id;
                         subDiv.innerHTML = createCheckboxHTML(sub, true, item.id);
                         subContainer.appendChild(subDiv);
                     });
@@ -1255,6 +1335,89 @@
             document.getElementById('modalProjectProgress').innerText = `${checkedCount}/${total}`;
             if (total === 0) container.innerHTML = '<div class="text-center p-4 text-zinc-500">Geen items.</div>';
         }
+
+        function renderActiveProjectImages() {
+            if (!activeProject) return;
+            const c = document.getElementById('modalProjectImagesContainer');
+            const images = activeProject.images || (activeProject.imageBase64 ? [activeProject.imageBase64] : []);
+            const key = activeProject.id + ':' + images.length;
+            if (c.dataset.key === key) return;
+            c.dataset.key = key;
+            c.innerHTML = '';
+            if (images.length === 0) {
+                c.innerHTML = '<div class="m-auto text-sm text-zinc-500 dark:text-zinc-400 text-center p-4">Nog geen fiches. Gebruik "Fiche toevoegen" bij de checklist.</div>';
+                return;
+            }
+            images.forEach(b64 => {
+                const img = document.createElement('img');
+                img.src = b64;
+                img.className = "w-full max-h-[70vh] object-contain bg-white dark:bg-black border border-zinc-200 dark:border-zinc-800 shadow-sm rounded-md";
+                c.appendChild(img);
+            });
+        }
+
+        // Volgorde wijzigen via sleephandvat (werkt met muis en touch)
+        (function setupChecklistSort() {
+            const list = document.getElementById('liveChecklist');
+            let drag = null;
+
+            list.addEventListener('pointerdown', (e) => {
+                const grip = e.target.closest('.cl-grip');
+                if (!grip) return;
+                const el = grip.closest('.cl-main, .cl-sub');
+                if (!el) return;
+                e.preventDefault();
+                try { grip.setPointerCapture(e.pointerId); } catch (_) { }
+                drag = { el, container: el.parentElement, parentId: el.classList.contains('cl-sub') ? el.parentElement.dataset.parent : null };
+                el.classList.add('is-sorting');
+            });
+
+            list.addEventListener('pointermove', (e) => {
+                if (!drag || !drag.el.isConnected) return;
+                const siblings = Array.from(drag.container.children).filter(c => c !== drag.el);
+                for (const sib of siblings) {
+                    const r = sib.getBoundingClientRect();
+                    if (e.clientY >= r.top && e.clientY <= r.bottom) {
+                        const before = e.clientY < r.top + r.height / 2;
+                        drag.container.insertBefore(drag.el, before ? sib : sib.nextSibling);
+                        break;
+                    }
+                }
+            });
+
+            const end = async () => {
+                if (!drag) return;
+                const d = drag;
+                drag = null;
+                d.el.classList.remove('is-sorting');
+                await saveChecklistOrder(d.parentId);
+            };
+            list.addEventListener('pointerup', end);
+            list.addEventListener('pointercancel', end);
+
+            async function saveChecklistOrder(parentId) {
+                if (!currentUser || !activeProject) return;
+                const cl = JSON.parse(JSON.stringify(activeProject.checklist || []));
+                let next;
+                if (parentId) {
+                    const parent = cl.find(i => i.id === parentId);
+                    const sc = Array.from(list.querySelectorAll('[data-parent]')).find(x => x.dataset.parent === parentId);
+                    if (!parent || !sc) return;
+                    const subs = new Map((parent.subitems || []).map(s => [s.id, s]));
+                    const ordered = Array.from(sc.children).map(c => subs.get(c.dataset.id)).filter(Boolean);
+                    if (ordered.length !== (parent.subitems || []).length) return;
+                    parent.subitems = ordered;
+                    next = cl;
+                } else {
+                    const byId = new Map(cl.map(i => [i.id, i]));
+                    next = Array.from(list.children).map(c => byId.get(c.dataset.id)).filter(Boolean);
+                    if (next.length !== cl.length) return;
+                }
+                if (JSON.stringify(next) === JSON.stringify(activeProject.checklist || [])) return;
+                try { await updateDoc(projectDoc(activeProject.id), { checklist: next }); }
+                catch (e) { showToast("Fout bij opslaan volgorde", "error"); renderActiveProjectLiveChecklist(); }
+            }
+        })();
 
         window.toggleItemStatus = async function (itemId, isChecked, parentId) {
             if (!currentUser || !activeProject) return;
@@ -1269,7 +1432,7 @@
                 }
             } else {
                 const item = updatedChecklist.find(i => i.id === itemId);
-                if (item) item.checked = isChecked;
+                if (item) { item.checked = isChecked; (item.subitems || []).forEach(s => { s.checked = isChecked; }); }
             }
 
             try {
