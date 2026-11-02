@@ -1549,6 +1549,22 @@
                 const dragged = d.item;
                 const movedSubs = d.parent ? [] : (dragged.subitems || []);
 
+                // bestelnummers (B + 6 cijfers) mogen nooit verloren gaan bij samenvoegen
+                if (zone === 'merge') {
+                    const BNR = /\bB\d{6}\b/gi;
+                    const nums = (s) => (String(s || '').match(BNR) || []).map(x => x.toUpperCase());
+                    const block = t.parent || t.item;
+                    const have = new Set([block.text, ...(block.subitems || []).map(s => s.text), ...movedSubs.map(s => s.text)].flatMap(nums));
+                    if (nums(dragged.text).some(x => !have.has(x))) {
+                        movedSubs.unshift({
+                            id: dragged.id,
+                            text: dragged.text,
+                            checked: !!dragged.checked,
+                            ...(dragged.delivered ? { delivered: true } : {})
+                        });
+                    }
+                }
+
                 // 1. gesleepte item eruit
                 d.arr.splice(d.index, 1);
                 // 2. doel opnieuw zoeken (indexen kunnen verschoven zijn)
