@@ -4,9 +4,10 @@ CRUCIALE REGELS:
 2. Gebruik NOOIT selectievakjes-tekens zoals [ ] of - [ ] in je tekst.
 3. Combineer het hoofdonderdeel, de aantallen, bestelbonnummers en leverdata (LD) op dezelfde regel achter elkaar tussen haakjes.
 4. SUB-ITEMS TOEGESTAAN: Als er specifieke sub-onderdelen of details onder een hoofdcategorie staan, mag je deze op een nieuwe regel plaatsen beginnend met een streepje (-).
+5. Maak van elk bestelnummer (zoals bijvoorbeeld 'B601243') een apart sub-item.
 FILTER-LOGICA:
 - De categorieën "Voorraadlijst" en "Elementen" moeten ALTIJD aanwezig zijn.
-- Voor ALLE ANDERE categorieën: een schuine streep (/) betekent NIET van toepassing. Laat die categorie dan VOLLEDIG weg.
+- Voor ALLE ANDERE categorieën: een schuine streep (/) of leeg vak betekent NIET van toepassing. Laat die categorie dan VOLLEDIG weg.
 - STRIKTE GLAS-SCHEIDING: Mogelijke leveranciers: "Ceyssens", "AID" en "Mosa". Combineer ze nooit.
 TITEL FORMAT STRIKT VEREIST:
 P000000 - Naam van het project (exact dit format: P gevolgd door 6 cijfers, een spatie, koppelteken, spatie, en de naam).
