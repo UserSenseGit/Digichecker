@@ -1572,17 +1572,23 @@
                 if (!t2) return;
 
                 if (zone === 'merge') {
-                    // doel behoudt tekst/status; alleen subitems van het gesleepte item komen erbij
-                    if (!t2.parent) {
-                        const subs = t2.item.subitems = t2.item.subitems || [];
-                        const seen = new Set(subs.map(norm));
-                        movedSubs.forEach(s => { if (!seen.has(norm(s))) { subs.push(s); seen.add(norm(s)); } });
-                    } else {
-                        const subs = t2.parent.subitems;
-                        const seen = new Set(subs.map(norm));
-                        let at = t2.index + 1;
-                        movedSubs.forEach(s => { if (!seen.has(norm(s))) { subs.splice(at++, 0, s); seen.add(norm(s)); } });
-                    }
+                    // patch 4: gesleepte item komt als subitem BINNEN het doel terecht
+                    const own = (dragged.subitems || []).filter(x => x.id !== dragged.id);
+                    const asSub = {
+                        id: dragged.id,
+                        text: dragged.text,
+                        checked: !!dragged.checked,
+                        ...(dragged.delivered ? { delivered: true } : {})
+                    };
+                    const host = t2.parent || t2.item;
+                    const subs = host.subitems = host.subitems || [];
+                    const seen = new Set(subs.map(norm));
+                    seen.add(norm(host));
+                    let at = t2.parent ? t2.index + 1 : subs.length;
+                    [asSub, ...own].forEach(x => {
+                        const k = norm(x);
+                        if (!seen.has(k)) { subs.splice(at++, 0, x); seen.add(k); }
+                    });
                 } else {
                     const at = t2.index + (zone === 'after' ? 1 : 0);
                     if (!t2.parent) {
@@ -1596,7 +1602,7 @@
                 if (JSON.stringify(cl) === JSON.stringify(activeProject.checklist || [])) return;
                 try {
                     await updateDoc(projectDoc(projectId), { checklist: cl });
-                    if (zone === 'merge') showToast('Items samengevoegd', 'success');
+                    if (zone === 'merge') showToast('Toegevoegd als subitem', 'success');
                 } catch (err) {
                     showToast('Fout bij opslaan', 'error');
                     renderActiveProjectLiveChecklist();
