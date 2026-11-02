@@ -209,6 +209,15 @@
             vertical-align: middle;
         }
         #modalProjectTitle:hover::after { opacity: .8; }
+    
+        /* patch 2: slepen van checklist-items (voor/na/samenvoegen) */
+        .cl-main.cl-drop-before, .cl-sub.cl-drop-before { box-shadow: 0 -3px 0 0 #3b82f6; }
+        .cl-main.cl-drop-after,  .cl-sub.cl-drop-after  { box-shadow: 0 3px 0 0 #3b82f6; }
+        .cl-main.cl-drop-merge > div:first-child,
+        .cl-sub.cl-drop-merge > div:first-child {
+            outline: 2px solid #3b82f6;
+            background-color: rgba(59, 130, 246, .12);
+        }
     </style>
 </head>
 
@@ -1450,10 +1459,34 @@
             });
         }
 
-        // Volgorde wijzigen via sleephandvat (werkt met muis en touch)
+        // Slepen via handvat: volgorde, subitem -> hoofditem, samenvoegen (patch 2)
         (function setupChecklistSort() {
             const list = document.getElementById('liveChecklist');
+            const scroller = list.closest('.overflow-y-auto');
             let drag = null;
+
+            const norm = (s) => ((s && s.text) || '').trim().toLowerCase();
+
+            function clearMarks() {
+                list.querySelectorAll('.cl-drop-before, .cl-drop-after, .cl-drop-merge')
+                    .forEach(n => n.classList.remove('cl-drop-before', 'cl-drop-after', 'cl-drop-merge'));
+            }
+
+            // Bepaalt waar het gesleepte item zou landen: bovenste 25% = ervoor,
+            // onderste 25% = erna, midden = samenvoegen.
+            function computeDrop(e) {
+                const hit = document.elementFromPoint(e.clientX, e.clientY);
+                const el = hit && hit.closest ? hit.closest('.cl-main, .cl-sub') : null;
+                if (!el || !list.contains(el)) return null;
+                if (el === drag.el || drag.el.contains(el)) return null;
+                const r = el.firstElementChild.getBoundingClientRect();
+                if (e.clientY < r.top || e.clientY > r.bottom) return null;
+                const ratio = (e.clientY - r.top) / r.height;
+                const zone = ratio < 0.25 ? 'before' : ratio > 0.75 ? 'after' : 'merge';
+                // hoofditem op een subitem: alleen samenvoegen toegestaan
+                if (!drag.isSub && el.classList.contains('cl-sub') && zone !== 'merge') return null;
+                return { el, zone, targetId: el.dataset.id };
+            }
 
             list.addEventListener('pointerdown', (e) => {
                 const grip = e.target.closest('.cl-grip');
@@ -1462,54 +1495,96 @@
                 if (!el) return;
                 e.preventDefault();
                 try { grip.setPointerCapture(e.pointerId); } catch (_) { }
-                drag = { el, container: el.parentElement, parentId: el.classList.contains('cl-sub') ? el.parentElement.dataset.parent : null };
+                drag = { el, id: el.dataset.id, isSub: el.classList.contains('cl-sub'), drop: null };
                 el.classList.add('is-sorting');
+                document.body.style.cursor = 'grabbing';
             });
 
             list.addEventListener('pointermove', (e) => {
-                if (!drag || !drag.el.isConnected) return;
-                const siblings = Array.from(drag.container.children).filter(c => c !== drag.el);
-                for (const sib of siblings) {
-                    const r = sib.getBoundingClientRect();
-                    if (e.clientY >= r.top && e.clientY <= r.bottom) {
-                        const before = e.clientY < r.top + r.height / 2;
-                        drag.container.insertBefore(drag.el, before ? sib : sib.nextSibling);
-                        break;
-                    }
+                if (!drag) return;
+                if (scroller) {
+                    const sr = scroller.getBoundingClientRect();
+                    if (e.clientY < sr.top + 40) scroller.scrollTop -= 12;
+                    else if (e.clientY > sr.bottom - 40) scroller.scrollTop += 12;
                 }
+                clearMarks();
+                drag.drop = computeDrop(e);
+                if (drag.drop) drag.drop.el.classList.add('cl-drop-' + drag.drop.zone);
             });
 
-            const end = async () => {
+            const end = async (e) => {
                 if (!drag) return;
                 const d = drag;
                 drag = null;
                 d.el.classList.remove('is-sorting');
-                await saveChecklistOrder(d.parentId);
+                document.body.style.cursor = '';
+                clearMarks();
+                if (e.type === 'pointercancel' || !d.drop) return;
+                await applyDrop(d.id, d.drop.targetId, d.drop.zone);
             };
             list.addEventListener('pointerup', end);
             list.addEventListener('pointercancel', end);
 
-            async function saveChecklistOrder(parentId) {
+            async function applyDrop(dragId, targetId, zone) {
                 if (!currentUser || !activeProject) return;
+                const projectId = activeProject.id;
                 const cl = JSON.parse(JSON.stringify(activeProject.checklist || []));
-                let next;
-                if (parentId) {
-                    const parent = cl.find(i => i.id === parentId);
-                    const sc = Array.from(list.querySelectorAll('[data-parent]')).find(x => x.dataset.parent === parentId);
-                    if (!parent || !sc) return;
-                    const subs = new Map((parent.subitems || []).map(s => [s.id, s]));
-                    const ordered = Array.from(sc.children).map(c => subs.get(c.dataset.id)).filter(Boolean);
-                    if (ordered.length !== (parent.subitems || []).length) return;
-                    parent.subitems = ordered;
-                    next = cl;
+
+                const find = (id) => {
+                    for (let i = 0; i < cl.length; i++) {
+                        if (cl[i].id === id) return { item: cl[i], parent: null, arr: cl, index: i };
+                        const subs = cl[i].subitems || [];
+                        for (let j = 0; j < subs.length; j++) {
+                            if (subs[j].id === id) return { item: subs[j], parent: cl[i], arr: subs, index: j };
+                        }
+                    }
+                    return null;
+                };
+
+                const d = find(dragId), t = find(targetId);
+                if (!d || !t || d.item === t.item) return;
+                if (t.parent && t.parent.id === d.item.id) return;      // hoofditem niet in eigen subitem
+                if (!d.parent && t.parent && zone !== 'merge') return;  // geen hoofditem -> subitem via randen
+
+                const dragged = d.item;
+                const movedSubs = d.parent ? [] : (dragged.subitems || []);
+
+                // 1. gesleepte item eruit
+                d.arr.splice(d.index, 1);
+                // 2. doel opnieuw zoeken (indexen kunnen verschoven zijn)
+                const t2 = find(targetId);
+                if (!t2) return;
+
+                if (zone === 'merge') {
+                    // doel behoudt tekst/status; alleen subitems van het gesleepte item komen erbij
+                    if (!t2.parent) {
+                        const subs = t2.item.subitems = t2.item.subitems || [];
+                        const seen = new Set(subs.map(norm));
+                        movedSubs.forEach(s => { if (!seen.has(norm(s))) { subs.push(s); seen.add(norm(s)); } });
+                    } else {
+                        const subs = t2.parent.subitems;
+                        const seen = new Set(subs.map(norm));
+                        let at = t2.index + 1;
+                        movedSubs.forEach(s => { if (!seen.has(norm(s))) { subs.splice(at++, 0, s); seen.add(norm(s)); } });
+                    }
                 } else {
-                    const byId = new Map(cl.map(i => [i.id, i]));
-                    next = Array.from(list.children).map(c => byId.get(c.dataset.id)).filter(Boolean);
-                    if (next.length !== cl.length) return;
+                    const at = t2.index + (zone === 'after' ? 1 : 0);
+                    if (!t2.parent) {
+                        if (d.parent) dragged.subitems = [];   // subitem wordt hoofditem
+                        cl.splice(at, 0, dragged);
+                    } else {
+                        t2.parent.subitems.splice(at, 0, dragged);
+                    }
                 }
-                if (JSON.stringify(next) === JSON.stringify(activeProject.checklist || [])) return;
-                try { await updateDoc(projectDoc(activeProject.id), { checklist: next }); }
-                catch (e) { showToast("Fout bij opslaan volgorde", "error"); renderActiveProjectLiveChecklist(); }
+
+                if (JSON.stringify(cl) === JSON.stringify(activeProject.checklist || [])) return;
+                try {
+                    await updateDoc(projectDoc(projectId), { checklist: cl });
+                    if (zone === 'merge') showToast('Items samengevoegd', 'success');
+                } catch (err) {
+                    showToast('Fout bij opslaan', 'error');
+                    renderActiveProjectLiveChecklist();
+                }
             }
         })();
 
