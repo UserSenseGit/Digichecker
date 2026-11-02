@@ -195,6 +195,20 @@
         #processingModal { z-index: 80 !important; }
         .cl-grip { cursor: grab; touch-action: none; }
         .cl-main.is-sorting, .cl-sub.is-sorting { opacity: .5; }
+    
+        /* patch: Werf-kolom + bewerkbare projecttitel */
+        #col-werf .kanban-column-header { border-top: 3px solid #8b5cf6; }
+        #modalProjectTitle { cursor: pointer; }
+        #modalProjectTitle::after {
+            content: "\f303";
+            font-family: "Font Awesome 6 Free";
+            font-weight: 900;
+            font-size: .55em;
+            margin-left: .6rem;
+            opacity: .35;
+            vertical-align: middle;
+        }
+        #modalProjectTitle:hover::after { opacity: .8; }
     </style>
 </head>
 
@@ -282,6 +296,20 @@
                         </div>
                     </div>
                     <div class="kanban-cards-container" data-status="done"></div>
+                </div>
+
+                <!-- Column: Werf -->
+                <div class="kanban-column bg-zinc-50 dark:bg-zinc-950 border border-zinc-200 dark:border-zinc-800 rounded-md"
+                    id="col-werf" data-status="werf">
+                    <div
+                        class="kanban-column-header p-3 font-semibold text-zinc-900 dark:text-white flex justify-between items-center bg-white dark:bg-zinc-900 border-b border-zinc-200 dark:border-zinc-800 rounded-t-md">
+                        <div class="flex items-center gap-2">
+                            <span>Werf</span>
+                            <span
+                                class="bg-violet-100 dark:bg-violet-900/40 text-violet-700 dark:text-violet-400 text-xs px-2 py-1 rounded-sm font-bold count-badge">0</span>
+                        </div>
+                    </div>
+                    <div class="kanban-cards-container" data-status="werf"></div>
                 </div>
 
                 <!-- Column: Archief -->
@@ -465,6 +493,7 @@
                             <option value="upcoming">Aankomend</option>
                             <option value="atelier">Atelier</option>
                             <option value="done">Gereed</option>
+                            <option value="werf">Werf</option>
                             <option value="archive">Archief</option>
                         </select>
 
@@ -801,9 +830,10 @@
                 'upcoming': document.querySelector('#col-upcoming .kanban-cards-container'),
                 'atelier': document.querySelector('#col-atelier .kanban-cards-container'),
                 'done': document.querySelector('#col-done .kanban-cards-container'),
+                'werf': document.querySelector('#col-werf .kanban-cards-container'),
                 'archive': document.querySelector('#col-archive .kanban-cards-container')
             };
-            const counts = { 'upcoming': 0, 'atelier': 0, 'done': 0, 'archive': 0 };
+            const counts = { 'upcoming': 0, 'atelier': 0, 'done': 0, 'werf': 0, 'archive': 0 };
 
             Object.values(containers).forEach(c => c.innerHTML = '');
             const template = document.getElementById('kanbanCardTemplate');
@@ -891,6 +921,7 @@
             document.querySelector('#col-upcoming .count-badge').textContent = counts['upcoming'];
             document.querySelector('#col-atelier .count-badge').textContent = counts['atelier'];
             document.querySelector('#col-done .count-badge').textContent = counts['done'];
+            document.querySelector('#col-werf .count-badge').textContent = counts['werf'];
             document.querySelector('#col-archive .count-badge').textContent = counts['archive'];
         }
 
@@ -1508,7 +1539,7 @@
                     if (i.subitems) i.subitems.forEach(s => { if (!s.checked) allDone = false; });
                 });
 
-                if (allDone && updatedChecklist.length > 0 && activeProject.status !== 'done' && activeProject.status !== 'archive') {
+                if (allDone && updatedChecklist.length > 0 && activeProject.status !== 'done' && activeProject.status !== 'werf' && activeProject.status !== 'archive') {
                     await updateDoc(docRef, { status: 'done' });
                     showToast("Alle items afgevinkt! Verplaatst naar Gereed.", "success");
                 }
@@ -1746,6 +1777,27 @@
             toast.classList.remove('translate-y-20', 'opacity-0');
             setTimeout(() => toast.classList.add('translate-y-20', 'opacity-0'), 3000);
         }
+    
+        // ---- Projecttitel bewerken (patch) ----
+        (function setupTitleEdit() {
+            const h = document.getElementById('modalProjectTitle');
+            h.title = 'Klik om de projectnaam te bewerken';
+            h.addEventListener('click', async () => {
+                if (!activeProject) return;
+                const current = activeProject.title || '';
+                const t = await window.openCustomDialog({
+                    title: 'Projectnaam bewerken',
+                    type: 'prompt',
+                    defaultValue: current,
+                    confirmText: 'Opslaan'
+                });
+                if (t === null) return;
+                const name = t.trim();
+                if (!name || name === current) return;
+                h.innerText = name;
+                await updateProjectField(activeProject.id, { title: name });
+            });
+        })();
     </script>
 </body>
 
