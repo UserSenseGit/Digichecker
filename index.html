@@ -255,6 +255,12 @@
         }
         .werkhal-full header, .werkhal-full nav { display: none; }
         .werkhal-full #werkhalView { padding: .5rem; gap: .5rem; }
+    
+        /* patch 8: ingeklapt archief toont titel + aantal */
+        #col-archive.archive-collapsed { min-width: 180px; width: 180px; }
+        #col-archive.archive-collapsed .archive-label { display: inline; }
+        #col-archive.archive-collapsed .archive-title { flex-direction: row; }
+        #col-archive.archive-collapsed .kanban-column-header { border-bottom: 0; border-radius: .375rem; }
     </style>
 </head>
 
