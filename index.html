@@ -261,6 +261,28 @@
         #col-archive.archive-collapsed .archive-label { display: inline; }
         #col-archive.archive-collapsed .archive-title { flex-direction: row; }
         #col-archive.archive-collapsed .kanban-column-header { border-bottom: 0; border-radius: .375rem; }
+    
+        /* patch 9: bok naar voorgrond, status, leveranciers */
+        #werkhalMap .bok.is-dragging { z-index: 70; }
+        #werkhalMap .bok.bok-selected {
+            --bok-scale: 1;
+            z-index: 60;
+            min-width: 230px;
+            max-width: 320px;
+            box-shadow: 0 0 0 3px #3b82f6, 0 12px 28px rgba(0,0,0,.45);
+        }
+        #werkhalMap.bok-compact .bok.bok-selected > div:not(:first-child) { display: block; }
+        #werkhalMap .bok.bok-selected .truncate { white-space: normal; overflow: visible; text-overflow: clip; }
+        #werkhalMap .bok:not(.bok-selected) .bok-extra { display: none; }
+        .bok.bok-static .bok-extra { display: none; }
+        #werkhalMap .bok.bok-selected > .bok-more { display: none !important; }
+        .bok .bok-hint { display: none; }
+        #werkhalMap .bok.bok-selected .bok-hint { display: block; }
+        .bok-logo {
+            background: rgba(255,255,255,.92); border-radius: 4px; padding: 1px 4px;
+            display: inline-flex; align-items: center;
+        }
+        .bok-logo img { height: 20px; max-width: 96px; object-fit: contain; display: block; }
     </style>
 </head>
 
@@ -393,7 +415,7 @@
             <div class="flex flex-wrap items-center gap-2">
                 <button id="btnAddBok" type="button"
                     class="bg-zinc-900 dark:bg-white text-white dark:text-zinc-900 hover:bg-zinc-800 dark:hover:bg-zinc-200 px-4 py-2 rounded-md shadow-sm font-medium transition-colors flex items-center gap-2 text-sm">
-                    <i class="fa-solid fa-plus"></i><span>Glasbok</span>
+                    <i class="fa-solid fa-plus"></i><span>Bok</span>
                 </button>
                 <button id="btnPickPlan" type="button" style="display:none" class="bg-zinc-100 dark:bg-zinc-800 hover:bg-zinc-200 dark:hover:bg-zinc-700 border border-zinc-200 dark:border-zinc-700 text-zinc-900 dark:text-zinc-100 px-4 py-2 rounded-md font-medium text-sm transition-colors flex items-center gap-2">
                     <i class="fa-regular fa-image"></i><span>Plattegrond kiezen</span>
@@ -668,13 +690,13 @@
         </div>
     </div>
 
-    <!-- Glasbok Modal -->
+    <!-- Bok Modal (patch 9) -->
     <div id="bokModal"
         class="fixed inset-0 modal-overlay z-50 flex items-center justify-center hidden opacity-0 transition-opacity duration-300">
         <div
             class="bg-white dark:bg-zinc-900 rounded-md border border-zinc-200 dark:border-zinc-800 shadow-2xl p-6 max-w-lg w-full mx-4 transform scale-95 transition-transform duration-300 flex flex-col max-h-[90vh] overflow-y-auto">
             <div class="flex justify-between items-center mb-4">
-                <h2 id="bokModalTitle" class="text-xl font-bold text-zinc-900 dark:text-white">Glasbok</h2>
+                <h2 id="bokModalTitle" class="text-xl font-bold text-zinc-900 dark:text-white">Bok</h2>
                 <button type="button" onclick="hideModal('bokModal')" class="text-zinc-400 hover:text-zinc-600 dark:hover:text-zinc-300">
                     <i class="fa-solid fa-xmark text-xl"></i>
                 </button>
@@ -686,14 +708,13 @@
                 </div>
                 <div>
                     <label class="block text-sm font-medium text-zinc-700 dark:text-zinc-300 mb-1">Leverancier</label>
-                    <input id="bokLeverancier" type="text" list="bokLevList" class="w-full p-2 border border-zinc-300 dark:border-zinc-700 bg-white dark:bg-zinc-800 text-zinc-900 dark:text-white rounded-md outline-none focus:ring-1 focus:ring-zinc-900 dark:focus:ring-white">
-                    <datalist id="bokLevList"></datalist>
+                    <select id="bokLeverancier" class="w-full p-2 border border-zinc-300 dark:border-zinc-700 bg-white dark:bg-zinc-800 text-zinc-900 dark:text-white rounded-md outline-none focus:ring-1 focus:ring-zinc-900 dark:focus:ring-white"></select>
                 </div>
                 <div>
                     <label class="block text-sm font-medium text-zinc-700 dark:text-zinc-300 mb-1">Status</label>
                     <select id="bokStatus" class="w-full p-2 border border-zinc-300 dark:border-zinc-700 bg-white dark:bg-zinc-800 text-zinc-900 dark:text-white rounded-md outline-none focus:ring-1 focus:ring-zinc-900 dark:focus:ring-white">
                         <option value="leeg">Leeg</option>
-                        <option value="vol">Vol</option>
+                        <option value="bezet">Bezet</option>
                     </select>
                 </div>
                 <div>
@@ -2039,7 +2060,7 @@
             });
         })();
     
-        // ===== Werkhal / glasbokken (patch 6: meerdere projecten per bok, vaste plattegrond) =====
+        // ===== Werkhal / bokken (patch 9) =====
         (function setupWerkhal() {
             const $ = (id) => document.getElementById(id);
             const bokCol = () => collection(db, 'workspaces', WORKSPACE_ID, 'glasbokken');
@@ -2047,21 +2068,64 @@
             const PLAN_URL = 'Plattegrond.png';
             const FIELD = 'w-full p-2 border border-zinc-300 dark:border-zinc-700 bg-white dark:bg-zinc-800 text-zinc-900 dark:text-white rounded-md outline-none focus:ring-1 focus:ring-zinc-900 dark:focus:ring-white';
 
+            // ===== LEVERANCIERS (hard-gecodeerd) =====
+            // Nieuwe leverancier toevoegen = een regel erbij. 'naam' is ook de bestandsnaam
+            // van het logo (naam + .png of .jpg, in dezelfde map als index.html).
+            const LEVERANCIERS = [
+                { naam: 'AID Glass Bv',   kleur: '#bbdb0b' },
+                { naam: 'Mosa Glas',      kleur: '#a9233e' },
+                { naam: 'Group Ceyssens', kleur: '#f28d01' },
+                { naam: 'AD Megatec',     kleur: '#75b726' }
+            ];
+            const STATUS = {
+                bezet: { label: 'BEZET', kleur: '#dc2626' },
+                leeg:  { label: 'LEEG',  kleur: '#16a34a' }
+            };
+
             let bokken = [];
             let planImage = null;
             let unsubBokken = null;
             let dragging = false, pendingRender = false;
             let editBok = null;
             let chooserOutside = null;
+            let selectedBokId = null;
+            const logoUrl = {};   // naam -> url (of null als er geen logo is)
 
             const isPlaced = (b) => typeof b.posX === 'number' && typeof b.posY === 'number';
             const clampPct = (n) => Math.min(100, Math.max(0, n));
             const round2 = (n) => Math.round(n * 100) / 100;
             const projectById = (id) => projects.find(p => p.id === id) || null;
-            // koppelingen = [{projectId, bNummer}]; oude bokken (1 project) worden vertaald
             const koppelingenOf = (b) => Array.isArray(b.koppelingen)
                 ? b.koppelingen
                 : (b.projectId ? [{ projectId: b.projectId, bNummer: b.bNummer || '' }] : []);
+            const isBezet = (b) => b.status === 'bezet' || b.status === 'vol';   // 'vol' = oude waarde
+            const statusKey = (b) => isBezet(b) ? 'bezet' : 'leeg';
+            const supplierOf = (naam) => LEVERANCIERS.find(l => l.naam === String(naam || '').trim()) || null;
+
+            // zwart of wit tekst, afhankelijk van welke het meeste contrast geeft
+            function textOn(hex) {
+                const c = [1, 3, 5].map(i => parseInt(hex.slice(i, i + 2), 16) / 255)
+                    .map(v => v <= 0.03928 ? v / 12.92 : Math.pow((v + 0.055) / 1.055, 2.4));
+                const L = 0.2126 * c[0] + 0.7152 * c[1] + 0.0722 * c[2];
+                return (1.05 / (L + 0.05)) > ((L + 0.05) / 0.06) ? '#ffffff' : '#18181b';
+            }
+
+            // ---------- logo's zoeken (.png, anders .jpg) ----------
+            function probeLogos() {
+                LEVERANCIERS.forEach(l => {
+                    const exts = ['png', 'jpg'];
+                    const attempt = (i) => {
+                        if (i >= exts.length) { logoUrl[l.naam] = null; return; }
+                        const url = encodeURIComponent(l.naam) + '.' + exts[i];
+                        const im = new Image();
+                        im.onload = () => { logoUrl[l.naam] = url; renderWerkhal(); renderGlasStrip(); };
+                        im.onerror = () => attempt(i + 1);
+                        im.src = url;
+                    };
+                    attempt(0);
+                });
+            }
+            probeLogos();
 
             // ---------- plattegrond: vast bestand naast index.html ----------
             $('werkhalEmpty').textContent = 'Plattegrond laden...';
@@ -2083,32 +2147,60 @@
             document.querySelectorAll('.view-tab').forEach(t => t.addEventListener('click', () => switchView(t.dataset.view)));
             window.addEventListener('hashchange', () => switchView(location.hash === '#werkhal' ? 'werkhal' : 'bord'));
 
+            // ---------- selectie (bok naar voorgrond) ----------
+            function markSelected() {
+                let found = false;
+                document.querySelectorAll('#werkhalMap .bok').forEach(n => {
+                    const on = n.dataset.bokId === selectedBokId;
+                    if (on) found = true;
+                    n.classList.toggle('bok-selected', on);
+                });
+                if (!found) selectedBokId = null;
+            }
+            function selectBok(id) { selectedBokId = id; markSelected(); }
+
+            $('werkhalMap').addEventListener('click', (e) => { if (!e.target.closest('.bok')) selectBok(null); });
+            document.addEventListener('keydown', (e) => { if (e.key === 'Escape') selectBok(null); });
+
             // ---------- marker bouwen ----------
             function buildMarker(b) {
-                const vol = b.status === 'vol';
+                const st = STATUS[statusKey(b)];
+                const sup = supplierOf(b.leverancier);
                 const ks = koppelingenOf(b);
                 const el = document.createElement('div');
                 el.dataset.bokId = b.id;
-                el.className = 'bok rounded-md border-2 shadow-md px-2 py-1 ' + (vol
-                    ? 'bg-amber-500 border-amber-600 text-zinc-900'
-                    : 'bg-white border-emerald-500 text-zinc-900 dark:bg-zinc-900 dark:text-zinc-100');
-                const lines = ks.slice(0, 2).map(k => {
+                el.className = 'bok rounded-md shadow-md px-2 py-1' +
+                    (sup ? '' : ' bg-white text-zinc-900 dark:bg-zinc-900 dark:text-zinc-100');
+                el.style.border = '2px solid rgba(0,0,0,.35)';
+                el.style.borderLeft = '8px solid ' + st.kleur;
+                if (sup) { el.style.background = sup.kleur; el.style.color = textOn(sup.kleur); }
+
+                const lines = ks.map((k, i) => {
                     const p = projectById(k.projectId);
-                    return '<div class="text-[11px] leading-tight truncate font-medium">' +
+                    return '<div class="text-[11px] leading-tight truncate font-medium' + (i >= 2 ? ' bok-extra' : '') + '">' +
                         (k.bNummer ? esc(k.bNummer) + ' \u00b7 ' : '') + esc(p ? p.title : 'Onbekend project') + '</div>';
                 }).join('');
                 const more = ks.length > 2
-                    ? '<div class="text-[10px] leading-tight opacity-70">+' + (ks.length - 2) + ' meer</div>' : '';
+                    ? '<div class="bok-more text-[10px] leading-tight opacity-70">+' + (ks.length - 2) + ' meer</div>' : '';
                 const none = ks.length === 0 ? '<div class="text-[11px] leading-tight opacity-70">Geen project</div>' : '';
+
+                let supHtml = '';
+                if (b.leverancier) {
+                    const url = sup && logoUrl[sup.naam];
+                    supHtml = '<div class="mt-1 flex items-center gap-1.5">' + (url
+                        ? '<span class="bok-logo"><img src="' + esc(url) + '" alt="' + esc(b.leverancier) + '"></span>'
+                        : '<span class="text-[10px] font-semibold leading-tight truncate">' + esc(b.leverancier) + '</span>') + '</div>';
+                }
+                const hint = ks.length > 0
+                    ? '<div class="bok-hint text-[10px] leading-tight opacity-80 mt-1">Tik nogmaals om naar het project te gaan</div>' : '';
+
                 el.innerHTML =
                     '<div class="flex items-center gap-1.5">' +
                         '<span class="font-bold text-xs truncate flex-grow">' + esc(b.boknummer || 'Bok') + '</span>' +
-                        '<button type="button" class="bok-status text-[10px] font-bold px-2 py-1 rounded-sm border ' +
-                            (vol ? 'bg-zinc-900 text-white border-zinc-900' : 'bg-emerald-500 text-white border-emerald-600') +
-                            '" title="Wisselen tussen vol en leeg">' + (vol ? 'VOL' : 'LEEG') + '</button>' +
+                        '<button type="button" class="bok-status text-[11px] font-extrabold tracking-wide px-2.5 py-1 rounded-sm" ' +
+                            'style="background:' + st.kleur + ';color:#fff" title="Wisselen tussen bezet en leeg">' + st.label + '</button>' +
                         '<button type="button" class="bok-edit p-1.5 rounded-sm hover:bg-black/10" title="Bewerken"><i class="fa-solid fa-pen text-[10px]"></i></button>' +
-                    '</div>' + lines + more + none +
-                    (b.leverancier ? '<div class="text-[10px] leading-tight opacity-70 truncate">' + esc(b.leverancier) + '</div>' : '');
+                    '</div>' + lines + more + none + supHtml + hint;
                 return el;
             }
 
@@ -2116,7 +2208,7 @@
                 el.querySelector('.bok-status').addEventListener('click', (e) => {
                     e.stopPropagation();
                     if (!currentUser) return;
-                    updateDoc(bokDoc(b.id), { status: b.status === 'vol' ? 'leeg' : 'vol' })
+                    updateDoc(bokDoc(b.id), { status: isBezet(b) ? 'leeg' : 'bezet' })
                         .catch(() => showToast('Fout bij wijzigen status', 'error'));
                 });
                 el.querySelector('.bok-edit').addEventListener('click', (e) => {
@@ -2125,7 +2217,7 @@
                 });
             }
 
-            // ---------- tik op bok: naar het project ----------
+            // ---------- naar het project ----------
             function goProject(p) { switchView('bord'); openProjectModal(p); }
 
             function closeChooser() {
@@ -2206,7 +2298,9 @@
                             .catch(() => { showToast('Fout bij opslaan positie', 'error'); renderWerkhal(); });
                     } else {
                         if (pendingRender) { pendingRender = false; renderWerkhal(); }
-                        tapBok(b, e);
+                        // 1e tik: naar de voorgrond; 2e tik op dezelfde bok: naar het project
+                        if (selectedBokId !== b.id) selectBok(b.id);
+                        else tapBok(b, e);
                     }
                 };
                 el.addEventListener('pointerup', finish);
@@ -2282,9 +2376,9 @@
                 map.querySelectorAll('.bok').forEach(n => n.remove());
                 const tray = $('bokTrayList');
                 tray.innerHTML = '';
-                let nVol = 0, nLeeg = 0;
+                let nBezet = 0, nLeeg = 0;
                 bokken.forEach(b => {
-                    if (b.status === 'vol') nVol++; else nLeeg++;
+                    if (isBezet(b)) nBezet++; else nLeeg++;
                     const el = buildMarker(b);
                     if (planImage && isPlaced(b)) {
                         el.style.left = clampPct(b.posX) + '%';
@@ -2297,13 +2391,13 @@
                         tray.appendChild(el);
                     }
                 });
+                markSelected();
                 $('bokTray').style.display = tray.children.length ? '' : 'none';
                 $('bokCounts').textContent = bokken.length
-                    ? nVol + ' vol \u00b7 ' + nLeeg + ' leeg \u00b7 ' + bokken.length + ' totaal' : '';
-                refreshBokLists();
+                    ? nBezet + ' bezet \u00b7 ' + nLeeg + ' leeg \u00b7 ' + bokken.length + ' totaal' : '';
             }
 
-            // ---------- Glas-rij in het projectvenster ----------
+            // ---------- Bokken-rij in het projectvenster ----------
             function renderGlasStrip() {
                 const box = $('glasStrip');
                 if (!box) return;
@@ -2311,41 +2405,45 @@
                 if (!activeProject) return;
                 const label = document.createElement('span');
                 label.className = 'text-xs font-bold uppercase tracking-wider text-zinc-500 dark:text-zinc-400 mr-1';
-                label.innerHTML = '<i class="fa-solid fa-border-all mr-1"></i>Glas';
+                label.innerHTML = '<i class="fa-solid fa-border-all mr-1"></i>Bokken';
                 box.appendChild(label);
                 bokken.forEach(b => {
                     const ks = koppelingenOf(b);
                     const mine = ks.find(k => k.projectId === activeProject.id);
                     if (!mine) return;
-                    const vol = b.status === 'vol';
+                    const st = STATUS[statusKey(b)];
+                    const sup = supplierOf(b.leverancier);
                     const chip = document.createElement('button');
                     chip.type = 'button';
                     chip.title = 'Toon op plattegrond';
-                    chip.className = 'text-xs font-medium px-2.5 py-1.5 rounded-md border flex items-center gap-2 transition-colors ' + (vol
-                        ? 'bg-amber-100 border-amber-400 text-amber-900 dark:bg-amber-900/30 dark:border-amber-600 dark:text-amber-200'
-                        : 'bg-emerald-50 border-emerald-400 text-emerald-900 dark:bg-emerald-900/20 dark:border-emerald-600 dark:text-emerald-200');
+                    chip.className = 'text-xs font-medium px-2.5 py-1.5 rounded-md flex items-center gap-2 transition-colors' +
+                        (sup ? '' : ' bg-zinc-100 dark:bg-zinc-800 text-zinc-900 dark:text-zinc-100');
+                    chip.style.border = '1px solid rgba(0,0,0,.25)';
+                    chip.style.borderLeft = '6px solid ' + st.kleur;
+                    if (sup) { chip.style.background = sup.kleur; chip.style.color = textOn(sup.kleur); }
                     chip.innerHTML =
                         '<span class="font-bold">' + esc(b.boknummer || 'Bok') + '</span>' +
                         (b.leverancier ? '<span>' + esc(b.leverancier) + '</span>' : '') +
                         (mine.bNummer ? '<span>' + esc(mine.bNummer) + '</span>' : '') +
                         (ks.length > 1 ? '<span class="opacity-70">+' + (ks.length - 1) + '</span>' : '') +
-                        '<span class="font-bold">' + (vol ? 'VOL' : 'LEEG') + '</span>';
+                        '<span class="font-bold">' + st.label + '</span>';
                     chip.addEventListener('click', () => goToBok(b.id));
                     box.appendChild(chip);
                 });
                 const add = document.createElement('button');
                 add.type = 'button';
                 add.className = 'text-xs font-medium px-2.5 py-1.5 rounded-md border border-zinc-300 dark:border-zinc-700 bg-zinc-100 dark:bg-zinc-800 text-zinc-700 dark:text-zinc-300 hover:bg-zinc-200 dark:hover:bg-zinc-700 flex items-center gap-1 transition-colors';
-                add.innerHTML = '<i class="fa-solid fa-plus"></i> Glasbok';
+                add.innerHTML = '<i class="fa-solid fa-plus"></i> Bok';
                 add.addEventListener('click', () => openBokModal(null, activeProject.id));
                 box.appendChild(add);
             }
 
             function goToBok(id) {
                 hideModal('projectModal');
+                selectedBokId = id;
                 switchView('werkhal');
                 setTimeout(() => {
-                    const el = document.querySelector('[data-bok-id="' + id + '"]');
+                    const el = document.querySelector('#werkhalMap [data-bok-id="' + id + '"], #bokTrayList [data-bok-id="' + id + '"]');
                     if (!el) return;
                     el.scrollIntoView({ block: 'center', inline: 'center', behavior: 'smooth' });
                     el.classList.add('bok-flash');
@@ -2353,10 +2451,13 @@
                 }, 150);
             }
 
-            // ---------- glasbok-venster ----------
-            function refreshBokLists() {
-                const lev = new Set(bokken.map(b => (b.leverancier || '').trim()).filter(Boolean));
-                $('bokLevList').innerHTML = Array.from(lev).map(x => '<option value="' + esc(x) + '"></option>').join('');
+            // ---------- bok-venster ----------
+            function supplierOptionsHtml(current) {
+                let h = '<option value="">\u2014 kies leverancier \u2014</option>' +
+                    LEVERANCIERS.map(l => '<option value="' + esc(l.naam) + '">' + esc(l.naam) + '</option>').join('');
+                // bestaande, niet-gecodeerde leverancier (uit eerdere versies) niet kwijtraken
+                if (current && !supplierOf(current)) h += '<option value="' + esc(current) + '">' + esc(current) + ' (overig)</option>';
+                return h;
             }
 
             function projectOptionsHtml(selectedId) {
@@ -2367,7 +2468,6 @@
                     list.map(p => '<option value="' + esc(p.id) + '">' + esc(p.title || 'Project') + '</option>').join('');
             }
 
-            // suggesties voor B-nummer: alle B-nummers uit de checklists van de gekozen projecten
             function refreshBNummerList() {
                 const found = new Set();
                 const scan = (t) => (String(t || '').match(/\bB\d{6}\b/gi) || []).forEach(x => found.add(x.toUpperCase()));
@@ -2400,10 +2500,12 @@
 
             function openBokModal(b, presetProjectId) {
                 editBok = b ? { id: b.id } : { id: null };
-                $('bokModalTitle').textContent = b ? 'Glasbok bewerken' : 'Nieuwe glasbok';
+                $('bokModalTitle').textContent = b ? 'Bok bewerken' : 'Nieuwe bok';
                 $('bokNummer').value = b ? (b.boknummer || '') : '';
-                $('bokLeverancier').value = b ? (b.leverancier || '') : '';
-                $('bokStatus').value = b && b.status === 'vol' ? 'vol' : 'leeg';
+                const cur = b ? (b.leverancier || '') : '';
+                $('bokLeverancier').innerHTML = supplierOptionsHtml(cur);
+                $('bokLeverancier').value = cur;
+                $('bokStatus').value = b ? statusKey(b) : 'leeg';
                 $('bokKoppelingen').innerHTML = '';
                 let ks = b ? koppelingenOf(b) : (presetProjectId ? [{ projectId: presetProjectId, bNummer: '' }] : []);
                 if (ks.length === 0) ks = [null];
@@ -2427,8 +2529,8 @@
                 })).filter(k => k.projectId);
                 const data = {
                     boknummer,
-                    leverancier: $('bokLeverancier').value.trim(),
-                    status: $('bokStatus').value === 'vol' ? 'vol' : 'leeg',
+                    leverancier: $('bokLeverancier').value,
+                    status: $('bokStatus').value === 'bezet' ? 'bezet' : 'leeg',
                     koppelingen
                 };
                 try {
@@ -2449,8 +2551,8 @@
             $('btnBokDelete').addEventListener('click', async () => {
                 if (!currentUser || !editBok || !editBok.id) return;
                 const ok = await window.openCustomDialog({
-                    title: 'Glasbok verwijderen',
-                    message: 'Deze glasbok definitief verwijderen?',
+                    title: 'Bok verwijderen',
+                    message: 'Deze bok definitief verwijderen?',
                     type: 'confirm', isDanger: true, confirmText: 'Verwijderen'
                 });
                 if (!ok) return;
@@ -2474,7 +2576,7 @@
                     list.sort((a, b) => String(a.boknummer || '').localeCompare(String(b.boknummer || ''), 'nl', { numeric: true }));
                     bokken = list;
                     renderWerkhal(); renderGlasStrip();
-                }, (err) => showToast('Glasbokken: ' + err.code, 'error'));
+                }, (err) => showToast('Bokken: ' + err.code, 'error'));
             }
             onAuthStateChanged(auth, (u) => { if (u) startGlas(); else stopGlas(); });
 
@@ -2486,7 +2588,7 @@
 
             switchView(location.hash === '#werkhal' ? 'werkhal' : 'bord');
         })();
-        
+
         // ===== Werkhal: zoom, schaal en schermvullend (patch 7) =====
         (function setupWerkhalZoom() {
             const $ = (id) => document.getElementById(id);
