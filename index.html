@@ -262,6 +262,11 @@
         #col-archive.archive-collapsed .archive-title { flex-direction: row; }
         #col-archive.archive-collapsed .kanban-column-header { border-bottom: 0; border-radius: .375rem; }
     
+        /* patch 10: zoeken op bord, bokkenlijst */
+        .search-hit-none { display: none !important; }
+        #bokListTable th { position: sticky; top: 0; }
+        .bok-list-collapsed #bokListBody { display: none; }
+
         /* patch 9: bok naar voorgrond, status, leveranciers */
         #werkhalMap .bok.is-dragging { z-index: 70; }
         #werkhalMap .bok.bok-selected {
@@ -333,6 +338,16 @@
                 class="flex-grow flex flex-col items-center justify-center text-zinc-500 dark:text-zinc-400 gap-3">
                 <div class="loader"></div>
                 <p>Projecten laden...</p>
+            </div>
+
+            <!-- Zoeken (patch 10) -->
+            <div id="boardSearchBar" class="mb-3 flex flex-wrap items-center gap-3">
+                <div class="relative w-full sm:w-80">
+                    <i class="fa-solid fa-magnifying-glass absolute left-3 top-1/2 -translate-y-1/2 text-zinc-400 text-sm pointer-events-none"></i>
+                    <input id="boardSearch" type="search" autocomplete="off" placeholder="Zoek project, week of B-nummer  ( / )"
+                        class="w-full pl-9 pr-3 py-2 border border-zinc-300 dark:border-zinc-700 bg-white dark:bg-zinc-900 text-zinc-900 dark:text-white rounded-md outline-none focus:ring-1 focus:ring-zinc-900 dark:focus:ring-white text-sm">
+                </div>
+                <span id="boardSearchInfo" class="text-sm text-zinc-500 dark:text-zinc-400"></span>
             </div>
 
             <!-- The Board -->
@@ -441,6 +456,44 @@
                     <div id="werkhalEmpty" class="p-10 text-center text-sm text-zinc-500 dark:text-zinc-400">
                         Nog geen plattegrond. Kies een afbeelding van de werkhal via "Plattegrond kiezen".
                     </div>
+                </div>
+            </div>
+
+            <!-- Overzicht bokken (patch 10) -->
+            <div id="bokListPanel" class="bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-md">
+                <div class="flex flex-wrap items-center gap-2 p-3 border-b border-zinc-200 dark:border-zinc-800">
+                    <button id="bokListToggle" type="button" class="flex items-center gap-2 font-semibold text-zinc-900 dark:text-white mr-auto">
+                        <i id="bokListChevron" class="fa-solid fa-chevron-down text-xs text-zinc-400"></i>
+                        <span>Overzicht bokken</span>
+                        <span id="bokListCount" class="bg-zinc-200 dark:bg-zinc-800 text-zinc-700 dark:text-zinc-300 text-xs px-2 py-1 rounded-sm font-bold">0</span>
+                    </button>
+                    <div class="relative w-full sm:w-64">
+                        <i class="fa-solid fa-magnifying-glass absolute left-3 top-1/2 -translate-y-1/2 text-zinc-400 text-sm pointer-events-none"></i>
+                        <input id="bokListSearch" type="search" autocomplete="off" placeholder="Zoek bok, project, B-nummer"
+                            class="w-full pl-9 pr-3 py-1.5 border border-zinc-300 dark:border-zinc-700 bg-white dark:bg-zinc-800 text-zinc-900 dark:text-white rounded-md outline-none focus:ring-1 focus:ring-zinc-900 dark:focus:ring-white text-sm">
+                    </div>
+                    <select id="bokListStatus" class="py-1.5 px-2 border border-zinc-300 dark:border-zinc-700 bg-white dark:bg-zinc-800 text-zinc-900 dark:text-white rounded-md outline-none text-sm">
+                        <option value="">Alle statussen</option>
+                        <option value="bezet">Bezet</option>
+                        <option value="leeg">Leeg</option>
+                    </select>
+                    <select id="bokListSupplier" class="py-1.5 px-2 border border-zinc-300 dark:border-zinc-700 bg-white dark:bg-zinc-800 text-zinc-900 dark:text-white rounded-md outline-none text-sm"></select>
+                </div>
+                <div id="bokListBody" class="overflow-x-auto">
+                    <table id="bokListTable" class="w-full text-sm">
+                        <thead class="text-left text-xs uppercase tracking-wider text-zinc-500 dark:text-zinc-400">
+                            <tr class="bg-zinc-50 dark:bg-zinc-950">
+                                <th class="px-3 py-2 font-semibold">Bok</th>
+                                <th class="px-3 py-2 font-semibold">Status</th>
+                                <th class="px-3 py-2 font-semibold">Leverancier</th>
+                                <th class="px-3 py-2 font-semibold">Projecten &middot; B-nummer</th>
+                                <th class="px-3 py-2 font-semibold">Plaats</th>
+                                <th class="px-3 py-2"></th>
+                            </tr>
+                        </thead>
+                        <tbody id="bokListRows" class="divide-y divide-zinc-200 dark:divide-zinc-800"></tbody>
+                    </table>
+                    <div id="bokListEmpty" class="p-6 text-center text-sm text-zinc-500 dark:text-zinc-400" style="display:none"></div>
                 </div>
             </div>
         </main>
@@ -1096,7 +1149,69 @@
             document.querySelector('#col-done .count-badge').textContent = counts['done'];
             document.querySelector('#col-werf .count-badge').textContent = counts['werf'];
             document.querySelector('#col-archive .count-badge').textContent = counts['archive'];
+            applyBoardFilter();
         }
+
+        // ---- Zoeken op het bord (patch 10) ----
+        // B-nummers per project worden door de werkhal-code gevuld (zie startGlas).
+        window.projectBNummers = window.projectBNummers || {};
+        const normSearch = (s) => String(s ?? '').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
+        function projectHaystack(p) {
+            return normSearch([
+                p.title, p.weekNumber ? 'w' + p.weekNumber + ' week ' + p.weekNumber : '',
+                p.label && LABELS[p.label] ? LABELS[p.label] : '',
+                (window.projectBNummers[p.id] || []).join(' ')
+            ].join(' '));
+        }
+        function applyBoardFilter() {
+            const input = document.getElementById('boardSearch');
+            const terms = normSearch(input ? input.value : '').split(/\s+/).filter(Boolean);
+            const byId = new Map(projects.map(p => [p.id, p]));
+            const shown = { upcoming: 0, atelier: 0, done: 0, werf: 0, archive: 0 };
+            let hits = 0;
+            document.querySelectorAll('#kanbanBoard .kanban-card').forEach(card => {
+                const p = byId.get(card.dataset.id);
+                const hay = p ? projectHaystack(p) : '';
+                const ok = terms.every(t => hay.includes(t));
+                card.classList.toggle('search-hit-none', !ok);
+                if (ok) { hits++; shown[card.dataset.status] = (shown[card.dataset.status] || 0) + 1; }
+            });
+            const col = document.getElementById('col-archive');
+            const savedCollapsed = localStorage.getItem('archiveCollapsed') === '1';
+            if (terms.length) {
+                Object.keys(shown).forEach(s => {
+                    const badge = document.querySelector('#col-' + s + ' .count-badge');
+                    if (badge) badge.textContent = shown[s];
+                });
+                // archief tijdelijk openklappen als daar treffers zitten
+                col.classList.toggle('archive-collapsed', savedCollapsed && shown.archive === 0);
+                document.getElementById('boardSearchInfo').textContent =
+                    hits === 0 ? 'Geen projecten gevonden' : hits + (hits === 1 ? ' project gevonden' : ' projecten gevonden');
+            } else {
+                col.classList.toggle('archive-collapsed', savedCollapsed);
+                document.getElementById('boardSearchInfo').textContent = '';
+            }
+            updateArchiveChevron();
+        }
+        (function setupBoardSearch() {
+            const input = document.getElementById('boardSearch');
+            input.addEventListener('input', applyBoardFilter);
+            input.addEventListener('keydown', (e) => {
+                if (e.key === 'Escape') { input.value = ''; applyBoardFilter(); input.blur(); }
+                if (e.key === 'Enter') {
+                    const first = document.querySelector('#kanbanBoard .kanban-card:not(.search-hit-none)');
+                    if (first) first.click();
+                }
+            });
+            document.addEventListener('keydown', (e) => {
+                if (e.key !== '/' || e.ctrlKey || e.metaKey || e.altKey) return;
+                if (e.target.closest('input, textarea, select, [contenteditable="true"]')) return;
+                if (document.querySelector('main:not(#werkhalView)').classList.contains('hidden')) return;
+                if (document.querySelector('.modal-overlay:not(.hidden)')) return;
+                e.preventDefault();
+                input.focus();
+            });
+        })();
 
         let draggedCard = null;
         function setupDragAndDropForCard(card) {
@@ -1137,7 +1252,7 @@
             column.addEventListener('dragover', (e) => {
                 if (!draggedCard) return;
                 e.preventDefault();
-                const cards = Array.from(container.children).filter(c => c.classList.contains('kanban-card') && c !== draggedCard);
+                const cards = Array.from(container.children).filter(c => c.classList.contains('kanban-card') && c !== draggedCard && !c.classList.contains('search-hit-none'));
                 let ref = null;
                 for (const c of cards) {
                     const r = c.getBoundingClientRect();
@@ -2395,6 +2510,133 @@
                 $('bokTray').style.display = tray.children.length ? '' : 'none';
                 $('bokCounts').textContent = bokken.length
                     ? nBezet + ' bezet \u00b7 ' + nLeeg + ' leeg \u00b7 ' + bokken.length + ' totaal' : '';
+                renderBokList();
+            }
+
+            // ---------- Overzicht bokken (patch 10) ----------
+            const LIST_KEY = 'bokListCollapsed';
+            function setListCollapsed(on) {
+                $('bokListPanel').classList.toggle('bok-list-collapsed', on);
+                $('bokListChevron').classList.toggle('fa-chevron-down', !on);
+                $('bokListChevron').classList.toggle('fa-chevron-right', on);
+                try { localStorage.setItem(LIST_KEY, on ? '1' : '0'); } catch (_) { }
+            }
+            try { setListCollapsed(localStorage.getItem(LIST_KEY) === '1'); } catch (_) { setListCollapsed(false); }
+            $('bokListToggle').addEventListener('click', () =>
+                setListCollapsed(!$('bokListPanel').classList.contains('bok-list-collapsed')));
+            ['bokListSearch', 'bokListStatus', 'bokListSupplier'].forEach(id => {
+                $(id).addEventListener(id === 'bokListSearch' ? 'input' : 'change', renderBokList);
+            });
+            $('bokListSearch').addEventListener('keydown', (e) => {
+                if (e.key === 'Escape') { e.target.value = ''; renderBokList(); }
+            });
+
+            function fillSupplierFilter() {
+                const sel = $('bokListSupplier'), cur = sel.value;
+                const names = [...new Set([...LEVERANCIERS.map(l => l.naam),
+                    ...bokken.map(b => String(b.leverancier || '').trim()).filter(Boolean)])];
+                sel.innerHTML = '<option value="">Alle leveranciers</option>' +
+                    names.map(n => '<option value="' + esc(n) + '">' + esc(n) + '</option>').join('') +
+                    '<option value="__geen">Zonder leverancier</option>';
+                sel.value = cur;
+                if (sel.value !== cur) sel.value = '';
+            }
+
+            function renderBokList() {
+                const rows = $('bokListRows');
+                if (!rows) return;
+                fillSupplierFilter();
+                const norm = (s) => String(s ?? '').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
+                const terms = norm($('bokListSearch').value).split(/\s+/).filter(Boolean);
+                const fStatus = $('bokListStatus').value;
+                const fSup = $('bokListSupplier').value;
+                const list = bokken.filter(b => {
+                    if (fStatus && statusKey(b) !== fStatus) return false;
+                    const lev = String(b.leverancier || '').trim();
+                    if (fSup === '__geen' ? lev : (fSup && lev !== fSup)) return false;
+                    if (!terms.length) return true;
+                    const hay = norm([b.boknummer, lev, ...koppelingenOf(b).map(k => {
+                        const p = projectById(k.projectId);
+                        return (k.bNummer || '') + ' ' + (p ? p.title : '');
+                    })].join(' '));
+                    return terms.every(t => hay.includes(t));
+                });
+                $('bokListCount').textContent = list.length === bokken.length ? bokken.length : list.length + '/' + bokken.length;
+                rows.innerHTML = '';
+                const empty = $('bokListEmpty');
+                if (!list.length) {
+                    empty.textContent = bokken.length ? 'Geen bokken gevonden.' : 'Nog geen bokken.';
+                    empty.style.display = '';
+                    $('bokListTable').querySelector('thead').style.display = 'none';
+                    return;
+                }
+                empty.style.display = 'none';
+                $('bokListTable').querySelector('thead').style.display = '';
+
+                list.forEach(b => {
+                    const st = STATUS[statusKey(b)];
+                    const sup = supplierOf(b.leverancier);
+                    const ks = koppelingenOf(b);
+                    const tr = document.createElement('tr');
+                    tr.className = 'hover:bg-zinc-50 dark:hover:bg-zinc-800/50 align-top';
+                    tr.dataset.bokId = b.id;
+
+                    const tdBok = document.createElement('td');
+                    tdBok.className = 'px-3 py-2 font-bold text-zinc-900 dark:text-white whitespace-nowrap';
+                    tdBok.style.borderLeft = '6px solid ' + st.kleur;
+                    tdBok.textContent = b.boknummer || 'Bok';
+
+                    const tdSt = document.createElement('td');
+                    tdSt.className = 'px-3 py-2';
+                    tdSt.innerHTML = '<button type="button" class="text-[11px] font-extrabold tracking-wide px-2.5 py-1 rounded-sm" ' +
+                        'style="background:' + st.kleur + ';color:#fff" title="Wisselen tussen bezet en leeg">' + st.label + '</button>';
+                    tdSt.firstChild.addEventListener('click', () => {
+                        if (!currentUser) return;
+                        updateDoc(bokDoc(b.id), { status: isBezet(b) ? 'leeg' : 'bezet' })
+                            .catch(() => showToast('Fout bij wijzigen status', 'error'));
+                    });
+
+                    const tdSup = document.createElement('td');
+                    tdSup.className = 'px-3 py-2 whitespace-nowrap';
+                    if (b.leverancier) {
+                        const chip = document.createElement('span');
+                        chip.className = 'inline-block text-xs font-semibold px-2 py-0.5 rounded-sm' +
+                            (sup ? '' : ' bg-zinc-100 dark:bg-zinc-800 text-zinc-800 dark:text-zinc-200');
+                        if (sup) { chip.style.background = sup.kleur; chip.style.color = textOn(sup.kleur); }
+                        chip.textContent = b.leverancier;
+                        tdSup.appendChild(chip);
+                    } else {
+                        tdSup.innerHTML = '<span class="text-zinc-400">\u2014</span>';
+                    }
+
+                    const tdPr = document.createElement('td');
+                    tdPr.className = 'px-3 py-2';
+                    if (!ks.length) tdPr.innerHTML = '<span class="text-zinc-400">Geen project</span>';
+                    ks.forEach(k => {
+                        const p = projectById(k.projectId);
+                        const line = document.createElement(p ? 'button' : 'div');
+                        line.className = 'block text-left text-zinc-800 dark:text-zinc-200' + (p ? ' hover:underline' : ' text-zinc-400');
+                        if (p) { line.type = 'button'; line.title = 'Open project'; line.addEventListener('click', () => goProject(p)); }
+                        line.innerHTML = (k.bNummer ? '<span class="font-semibold">' + esc(k.bNummer) + '</span> \u00b7 ' : '') +
+                            esc(p ? (p.title || 'Project') : 'Onbekend project');
+                        tdPr.appendChild(line);
+                    });
+
+                    const tdPl = document.createElement('td');
+                    tdPl.className = 'px-3 py-2 whitespace-nowrap text-zinc-500 dark:text-zinc-400';
+                    tdPl.textContent = isPlaced(b) ? 'Op plattegrond' : 'Niet geplaatst';
+
+                    const tdAct = document.createElement('td');
+                    tdAct.className = 'px-3 py-2 whitespace-nowrap text-right';
+                    tdAct.innerHTML =
+                        '<button type="button" class="bl-locate p-1.5 rounded-md text-zinc-500 hover:text-zinc-900 dark:hover:text-white hover:bg-zinc-100 dark:hover:bg-zinc-800" title="Toon op plattegrond"><i class="fa-solid fa-location-crosshairs"></i></button>' +
+                        '<button type="button" class="bl-edit p-1.5 rounded-md text-zinc-500 hover:text-zinc-900 dark:hover:text-white hover:bg-zinc-100 dark:hover:bg-zinc-800" title="Bewerken"><i class="fa-solid fa-pen"></i></button>';
+                    tdAct.querySelector('.bl-locate').addEventListener('click', () => goToBok(b.id));
+                    tdAct.querySelector('.bl-edit').addEventListener('click', () => openBokModal(b));
+
+                    [tdBok, tdSt, tdSup, tdPr, tdPl, tdAct].forEach(td => tr.appendChild(td));
+                    rows.appendChild(tr);
+                });
             }
 
             // ---------- Bokken-rij in het projectvenster ----------
@@ -2575,7 +2817,12 @@
                     snap.forEach(d => list.push({ id: d.id, ...d.data() }));
                     list.sort((a, b) => String(a.boknummer || '').localeCompare(String(b.boknummer || ''), 'nl', { numeric: true }));
                     bokken = list;
-                    renderWerkhal(); renderGlasStrip();
+                    const bn = {};
+                    list.forEach(b => koppelingenOf(b).forEach(k => {
+                        if (k.projectId && k.bNummer) (bn[k.projectId] = bn[k.projectId] || []).push(k.bNummer);
+                    }));
+                    window.projectBNummers = bn;
+                    renderWerkhal(); renderGlasStrip(); applyBoardFilter();
                 }, (err) => showToast('Bokken: ' + err.code, 'error'));
             }
             onAuthStateChanged(auth, (u) => { if (u) startGlas(); else stopGlas(); });
