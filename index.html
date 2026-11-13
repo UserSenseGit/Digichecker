@@ -244,7 +244,7 @@
         /* patch 7: zoom, schaal en schermvullend (werkhal) */
         #werkhalMap .bok { transform: translate(-50%, -50%) scale(var(--bok-scale, 1)); }
         #werkhalMap.bok-compact .bok { min-width: 0; }
-        #werkhalMap.bok-compact .bok > div:not(:first-child) { display: none; }
+        #werkhalMap.bok-compact .bok > div:not(:first-child):not(.bok-sup) { display: none; }
         .werkhal-zoomed {
             max-height: calc(100vh - 150px);
             max-height: calc(100dvh - 150px);
@@ -295,13 +295,17 @@
             border-width: 1px !important; border-left-width: 4px !important;
             box-shadow: 0 1px 3px rgba(0,0,0,.3);
         }
-        #werkhalMap:not(.bok-details) .bok:not(.bok-selected) > div:not(:first-child),
+        #werkhalMap:not(.bok-details) .bok:not(.bok-selected) > div:not(:first-child):not(.bok-sup),
         #werkhalMap:not(.bok-details) .bok:not(.bok-selected) .bok-edit { display: none; }
         #werkhalMap:not(.bok-details) .bok:not(.bok-selected) > div:first-child { gap: 3px; }
         #werkhalMap:not(.bok-details) .bok:not(.bok-selected) > div:first-child > span { font-size: 12px; line-height: 16px; }
         #werkhalMap:not(.bok-details) .bok:not(.bok-selected) .bok-status {
             font-size: 9px; line-height: 14px; padding: 0 4px; letter-spacing: 0;
         }
+        #werkhalMap:not(.bok-details) .bok:not(.bok-selected) > .bok-sup { margin-top: 2px; }
+        #werkhalMap:not(.bok-details) .bok:not(.bok-selected) .bok-logo { padding: 1px 3px; }
+        #werkhalMap:not(.bok-details) .bok:not(.bok-selected) .bok-logo img { height: 20px; max-width: 90px; }
+        #werkhalMap:not(.bok-details) .bok:not(.bok-selected) .bok-sup > span:not(.bok-logo) { font-size: 9px; }
         #btnBokDetails.active { background: #18181b; color: #fff; border-color: #18181b; }
         .dark #btnBokDetails.active { background: #fff; color: #18181b; border-color: #fff; }
     </style>
@@ -2319,7 +2323,7 @@
                 let supHtml = '';
                 if (b.leverancier) {
                     const url = sup && logoUrl[sup.naam];
-                    supHtml = '<div class="mt-1 flex items-center gap-1.5">' + (url
+                    supHtml = '<div class="bok-sup mt-1 flex items-center gap-1.5">' + (url
                         ? '<span class="bok-logo"><img src="' + esc(url) + '" alt="' + esc(b.leverancier) + '"></span>'
                         : '<span class="text-[10px] font-semibold leading-tight truncate">' + esc(b.leverancier) + '</span>') + '</div>';
                 }
