@@ -288,6 +288,22 @@
             display: inline-flex; align-items: center;
         }
         .bok-logo img { height: 20px; max-width: 96px; object-fit: contain; display: block; }
+
+        /* patch 11: compacte bokken op de plattegrond (details pas na tikken) */
+        #werkhalMap:not(.bok-details) .bok:not(.bok-selected) {
+            min-width: 0; max-width: 120px; padding: 2px 5px 2px 4px;
+            border-width: 1px !important; border-left-width: 4px !important;
+            box-shadow: 0 1px 3px rgba(0,0,0,.3);
+        }
+        #werkhalMap:not(.bok-details) .bok:not(.bok-selected) > div:not(:first-child),
+        #werkhalMap:not(.bok-details) .bok:not(.bok-selected) .bok-edit { display: none; }
+        #werkhalMap:not(.bok-details) .bok:not(.bok-selected) > div:first-child { gap: 3px; }
+        #werkhalMap:not(.bok-details) .bok:not(.bok-selected) > div:first-child > span { font-size: 12px; line-height: 16px; }
+        #werkhalMap:not(.bok-details) .bok:not(.bok-selected) .bok-status {
+            font-size: 9px; line-height: 14px; padding: 0 4px; letter-spacing: 0;
+        }
+        #btnBokDetails.active { background: #18181b; color: #fff; border-color: #18181b; }
+        .dark #btnBokDetails.active { background: #fff; color: #18181b; border-color: #fff; }
     </style>
 </head>
 
@@ -441,6 +457,7 @@
                     <button type="button" id="btnZoomOut" title="Uitzoomen" class="bg-zinc-100 dark:bg-zinc-800 hover:bg-zinc-200 dark:hover:bg-zinc-700 border border-zinc-200 dark:border-zinc-700 text-zinc-900 dark:text-zinc-100 h-10 rounded-md text-sm font-semibold transition-colors flex items-center justify-center disabled:opacity-40 w-10"><i class="fa-solid fa-magnifying-glass-minus"></i></button>
                     <button type="button" id="btnZoomFit" title="Hele plattegrond" class="bg-zinc-100 dark:bg-zinc-800 hover:bg-zinc-200 dark:hover:bg-zinc-700 border border-zinc-200 dark:border-zinc-700 text-zinc-900 dark:text-zinc-100 h-10 rounded-md text-sm font-semibold transition-colors flex items-center justify-center disabled:opacity-40 px-3" style="min-width:3.5rem"><span id="zoomLabel">100%</span></button>
                     <button type="button" id="btnZoomIn" title="Inzoomen" class="bg-zinc-100 dark:bg-zinc-800 hover:bg-zinc-200 dark:hover:bg-zinc-700 border border-zinc-200 dark:border-zinc-700 text-zinc-900 dark:text-zinc-100 h-10 rounded-md text-sm font-semibold transition-colors flex items-center justify-center disabled:opacity-40 w-10"><i class="fa-solid fa-magnifying-glass-plus"></i></button>
+                    <button type="button" id="btnBokDetails" title="Details van alle bokken tonen" class="bg-zinc-100 dark:bg-zinc-800 hover:bg-zinc-200 dark:hover:bg-zinc-700 border border-zinc-200 dark:border-zinc-700 text-zinc-900 dark:text-zinc-100 h-10 rounded-md text-sm font-semibold transition-colors flex items-center justify-center w-10"><i class="fa-solid fa-list-ul"></i></button>
                     <button type="button" id="btnFullscreen" title="Schermvullend" class="bg-zinc-100 dark:bg-zinc-800 hover:bg-zinc-200 dark:hover:bg-zinc-700 border border-zinc-200 dark:border-zinc-700 text-zinc-900 dark:text-zinc-100 h-10 rounded-md text-sm font-semibold transition-colors flex items-center justify-center disabled:opacity-40 w-10"><i class="fa-solid fa-expand" id="fullIcon"></i></button>
                 </div>
             </div>
@@ -2922,6 +2939,18 @@
                 } catch (_) { /* bv. iPhone: alleen de header verbergen */ }
             }
             $('btnFullscreen').addEventListener('click', toggleFull);
+
+            // patch 11: compact (standaard) of alle details tonen
+            function setDetails(on) {
+                map.classList.toggle('bok-details', on);
+                $('btnBokDetails').classList.toggle('active', on);
+                $('btnBokDetails').title = on ? 'Bokken compact tonen' : 'Details van alle bokken tonen';
+                try { localStorage.setItem('bokDetails', on ? '1' : '0'); } catch (_) { }
+            }
+            let detailsSaved = false;
+            try { detailsSaved = localStorage.getItem('bokDetails') === '1'; } catch (_) { }
+            setDetails(detailsSaved);
+            $('btnBokDetails').addEventListener('click', () => setDetails(!map.classList.contains('bok-details')));
             document.addEventListener('fullscreenchange', () => {
                 if (!document.fullscreenElement && document.body.classList.contains('werkhal-full')) setFull(false);
             });
